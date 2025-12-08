@@ -22,7 +22,7 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
     private LobbyPanel lobbyPanel;
     private WaitingRoomPanel waitingRoomPanel;
     private JPanel gamePanel;
-    
+    private boolean isHost = false;
     // Componentes del juego
     private JPanel playersPanel;
     private GameInfoPanel infoPanel;
@@ -101,42 +101,40 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
     });
     
     // ✅ 2. Pantalla de Lobby
-    lobbyPanel = new LobbyPanel(new LobbyPanel.LobbyListener() {
-        @Override
-        public void onExit() {
-            if (client != null && client.isConnected()) {
-                client.disconnect();
-            }
-            
-            // Limpiar campos del login
-            loginPanel.clearFields();
-            
-            showPanel("login");
+  lobbyPanel = new LobbyPanel(new LobbyPanel.LobbyListener() {
+    @Override
+    public void onExit() {
+        if (client != null && client.isConnected()) {
+            client.disconnect();
         }
         
-        public void onCreateRoom(String roomName, String playerName, int maxPlayers) {
-            client.createRoom(roomName, maxPlayers);
-        }
-        
-        public void onJoinRoom(String roomId, String playerName, boolean asSpectator) {
-            isSpectator = asSpectator;
-            if (asSpectator) {
-                client.joinRoomAsSpectator(roomId);
-            } else {
-                client.joinRoom(roomId);
-            }
-        }
-        
-        public void onRefresh() {
-            client.requestRooms();
-        }
-        
-        public void onViewRankings() {
-            client.requestRankings();
-            showPanel("rankings");
-        }
-    });
+        isHost = false; // ✅ Limpiar al salir
+        loginPanel.clearFields();
+        showPanel("login");
+    }
     
+    public void onCreateRoom(String roomName, String playerName, int maxPlayers) {
+        client.createRoom(roomName, maxPlayers);
+    }
+    
+    public void onJoinRoom(String roomId, String playerName, boolean asSpectator) {
+        isSpectator = asSpectator;
+        if (asSpectator) {
+            client.joinRoomAsSpectator(roomId);
+        } else {
+            client.joinRoom(roomId);
+        }
+    }
+    
+    public void onRefresh() {
+        client.requestRooms();
+    }
+    
+    public void onViewRankings() {
+        client.requestRankings();
+        showPanel("rankings");
+    }
+});
     // ✅ 3. Panel de Rankings
     rankingsPanel = new RankingsPanel(new RankingsPanel.RankingsListener() {
         public void onBack() {
@@ -148,23 +146,48 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
     });
     
     // ✅ 4. Sala de espera
-    waitingRoomPanel = new WaitingRoomPanel(new WaitingRoomPanel.WaitingRoomListener() {
-        public void onReady() {
-            client.ready();
-        }
-        public void onLeaveRoom() {
+  // ✅ MODIFICAR el listener de WaitingRoomPanel en initUI()
+waitingRoomPanel = new WaitingRoomPanel(new WaitingRoomPanel.WaitingRoomListener() {
+    public void onReady() {
+        client.ready();
+    }
+    
+    public void onLeaveRoom() {
+        // ✅ ADVERTENCIA SI ES HOST
+        if (isHost) {
+            int confirm = JOptionPane.showConfirmDialog(
+                GameWindow.this,
+                "Eres el HOST de esta sala.\n\n" +
+                "Si sales, la sala se CERRARÁ para todos los jugadores.\n\n" +
+                "¿Estás seguro de que quieres salir?",
+                "⚠️ Advertencia - Cerrar Sala",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+            );
+            
+            if (confirm == JOptionPane.YES_OPTION) {
+                client.leaveRoom();
+                isHost = false;
+                showPanel("lobby");
+            }
+            // Si dice NO, no hace nada y permanece en la sala
+        } else {
+            // No es host, salir normalmente
             client.leaveRoom();
             showPanel("lobby");
         }
-        public void onJoinAsPlayer() {
-            String roomId = client.getCurrentRoomId();
-            if (roomId != null) {
-                client.leaveRoom();
-                isSpectator = false;
-                client.joinRoom(roomId);
-            }
+    }
+    
+    public void onJoinAsPlayer() {
+        String roomId = client.getCurrentRoomId();
+        if (roomId != null) {
+            client.leaveRoom();
+            isSpectator = false;
+            isHost = false; // ✅ Al re-unirse, ya no es host
+            client.joinRoom(roomId);
         }
-    });
+    }
+});
     
     // ✅ 5. Pantalla de juego
     gamePanel = createGamePanel();
@@ -355,51 +378,97 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
         rankingsPanel.updateRankings(rankings);
     }
     
-    private JPanel createControls() {
-        JPanel controls = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 15)) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g;
-                g2.setColor(Color.WHITE);
-                g2.fillRect(0, 0, getWidth(), getHeight());
-                g2.setColor(new Color(100, 180, 246));
-                g2.fillRect(0, 0, getWidth(), 4);
+   private JPanel createControls() {
+    JPanel controls = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 15)) {
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setColor(Color.WHITE);
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            g2.setColor(new Color(100, 180, 246));
+            g2.fillRect(0, 0, getWidth(), 4);
+        }
+    };
+    controls.setBorder(new EmptyBorder(12, 0, 18, 0));
+    
+    readyBtn = createButton("LISTO", GREEN);
+    hitBtn = createButton("🂠 PEDIR CARTA", BLUE_DARK);
+    standBtn = createButton("✋ PLANTARSE", ORANGE);
+    JButton backBtn = createButton("SALIR", RED);
+    
+    readyBtn.addActionListener(e -> {
+        client.ready();
+        readyBtn.setEnabled(false);
+        readyBtn.setText("ESPERANDO...");
+    });
+    
+    hitBtn.addActionListener(e -> { 
+        if (isMyTurn) client.hit(); 
+    });
+    
+    standBtn.addActionListener(e -> { 
+        if (isMyTurn) client.stand(); 
+    });
+    
+    backBtn.addActionListener(e -> {
+        // ✅ ADVERTENCIA SI ES HOST Y ESTÁ EN JUEGO
+        if (isHost && gameStarted) {
+            int confirm = JOptionPane.showConfirmDialog(
+                this,
+                "Eres el HOST de esta partida.\n\n" +
+                "Si sales, el juego TERMINARÁ para todos.\n\n" +
+                "¿Estás seguro de que quieres salir?",
+                "⚠️ Advertencia - Finalizar Partida",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+            );
+            
+            if (confirm == JOptionPane.YES_OPTION) {
+                client.leaveRoom();
+                gameStarted = false;
+                isHost = false;
+                cleanupGameState();
+                showPanel("lobby");
             }
-        };
-        controls.setBorder(new EmptyBorder(12, 0, 18, 0));
-        
-        readyBtn = createButton("LISTO", GREEN);
-        hitBtn = createButton("🂠 PEDIR CARTA", BLUE_DARK);
-        standBtn = createButton("✋ PLANTARSE", ORANGE);
-        JButton backBtn = createButton("SALIR", RED);
-        
-        readyBtn.addActionListener(e -> {
-            client.ready();
-            readyBtn.setEnabled(false);
-            readyBtn.setText("ESPERANDO...");
-        });
-        hitBtn.addActionListener(e -> { if (isMyTurn) client.hit(); });
-        standBtn.addActionListener(e -> { if (isMyTurn) client.stand(); });
-        
-        backBtn.addActionListener(e -> {
+        } else if (isHost && !gameStarted) {
+            // En sala de espera pero es host
+            int confirm = JOptionPane.showConfirmDialog(
+                this,
+                "Eres el HOST de esta sala.\n\n" +
+                "Si sales, la sala se CERRARÁ para todos.\n\n" +
+                "¿Estás seguro de que quieres salir?",
+                "⚠️ Advertencia - Cerrar Sala",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+            );
+            
+            if (confirm == JOptionPane.YES_OPTION) {
+                client.leaveRoom();
+                gameStarted = false;
+                isHost = false;
+                cleanupGameState();
+                showPanel("lobby");
+            }
+        } else {
+            // No es host, salir normalmente
             client.leaveRoom();
             gameStarted = false;
             cleanupGameState();
             showPanel("lobby");
-        });
-        
-        readyBtn.setEnabled(false);
-        hitBtn.setEnabled(false);
-        standBtn.setEnabled(false);
-        
-        controls.add(backBtn);
-        controls.add(readyBtn);
-        controls.add(hitBtn);
-        controls.add(standBtn);
-        
-        return controls;
-    }
+        }
+    });
     
+    readyBtn.setEnabled(false);
+    hitBtn.setEnabled(false);
+    standBtn.setEnabled(false);
+    
+    controls.add(backBtn);
+    controls.add(readyBtn);
+    controls.add(hitBtn);
+    controls.add(standBtn);
+    
+    return controls;
+}
     private JButton createButton(String text, Color color) {
         JButton btn = new JButton(text) {
             boolean hover = false;
@@ -569,37 +638,41 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
         loginPanel.onRegisterFailed(reason);
     }
     
-    public void onDisconnected() {
-        SwingUtilities.invokeLater(() -> {
-            gameStarted = false;
-            isMyTurn = false;
-            showPanel("login");
-            JOptionPane.showMessageDialog(this, "Desconectado del servidor", "Aviso", JOptionPane.WARNING_MESSAGE);
-        });
-    }
+  public void onDisconnected() {
+    SwingUtilities.invokeLater(() -> {
+        gameStarted = false;
+        isMyTurn = false;
+        isHost = false; // ✅ Limpiar estado de host
+        showPanel("login");
+        JOptionPane.showMessageDialog(this, "Desconectado del servidor", "Aviso", JOptionPane.WARNING_MESSAGE);
+    });
+}
     
     public void onRoomList(java.util.List<GameRoom> rooms) {
         lobbyPanel.updateRoomList(rooms);
     }
     
-    public void onRoomCreated(GameRoom room, int playerId) {
-        SwingUtilities.invokeLater(() -> {
-            myPlayerId = playerId;
-            waitingRoomPanel.setSpectator(false);
-            waitingRoomPanel.updateRoom(room);
-            showPanel("waiting");
-        });
-    }
+public void onRoomCreated(GameRoom room, int playerId) {
+    SwingUtilities.invokeLater(() -> {
+        myPlayerId = playerId;
+        isHost = true; // ✅ Marcar como host
+        waitingRoomPanel.setSpectator(false);
+        waitingRoomPanel.updateRoom(room);
+        showPanel("waiting");
+    });
+}
+
     
-    public void onRoomJoined(GameRoom room, int playerId) {
-        SwingUtilities.invokeLater(() -> {
-            myPlayerId = playerId;
-            isSpectator = (playerId < 0);
-            waitingRoomPanel.setSpectator(isSpectator);
-            waitingRoomPanel.updateRoom(room);
-            showPanel("waiting");
-        });
-    }
+  public void onRoomJoined(GameRoom room, int playerId) {
+    SwingUtilities.invokeLater(() -> {
+        myPlayerId = playerId;
+        isSpectator = (playerId < 0);
+        isHost = false; // ✅ NO es host
+        waitingRoomPanel.setSpectator(isSpectator);
+        waitingRoomPanel.updateRoom(room);
+        showPanel("waiting");
+    });
+}
     
     public void onRoomUpdate(GameRoom room) {
         waitingRoomPanel.updateRoom(room);
@@ -713,7 +786,7 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
         }
     }
     
-  public void onChooseActionTarget(Card card, java.util.List<Player> active) {
+public void onChooseActionTarget(Card card, java.util.List<Player> active) {
     if (isSpectator) return;
     
     SwingUtilities.invokeLater(() -> {
@@ -770,64 +843,95 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
         });
     }
     
-    public void onGameEnd(java.util.List<Player> players, int winnerId) {
-        SwingUtilities.invokeLater(() -> {
-            gameStarted = false; 
-            isMyTurn = false; 
-            updateControls();
-            
-            Player w = null; 
-            for (Player p : players) {
-                if (p.getId() == winnerId) { 
-                    w = p; 
-                    break; 
-                }
+   public void onGameEnd(java.util.List<Player> players, int winnerId) {
+    SwingUtilities.invokeLater(() -> {
+        gameStarted = false; 
+        isMyTurn = false; 
+        updateControls();
+        
+        Player w = null; 
+        for (Player p : players) {
+            if (p.getId() == winnerId) { 
+                w = p; 
+                break; 
             }
-            
-            String msg = w != null ? w.getName() + " GANA con " + w.getTotalScore() + " pts!" : "Fin";
-            infoPanel.log("\n*** " + msg + " ***\n");
-            
-            if (!isSpectator) {
-                int option = JOptionPane.showOptionDialog(this, 
-                    msg + "\n\n¿Quieres jugar otra partida?", 
+        }
+        
+        String msg = w != null ? w.getName() + " GANA con " + w.getTotalScore() + " pts!" : "Fin";
+        infoPanel.log("\n*** " + msg + " ***\n");
+        
+        if (!isSpectator) {
+            // ✅ DIÁLOGO OBLIGATORIO SIN OPCIÓN DE CERRAR
+            int option = -1;
+            while (option != 0 && option != 1) {
+                option = JOptionPane.showOptionDialog(
+                    this, 
+                    msg + "\n\n¿Quieres jugar otra partida?\n(Debes elegir una opción)", 
                     "Fin del Juego!", 
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.QUESTION_MESSAGE,
                     null,
                     new String[]{"REVANCHA", "SALIR"},
-                    "REVANCHA");
+                    "REVANCHA"
+                );
                 
-                if (option == 0) {
-                    waitingRoomPanel.reset();
-                    cleanupGameState();
-                    showPanel("waiting");
-                } else {
-                    client.leaveRoom();
-                    cleanupGameState();
-                    showPanel("lobby");
+                // ✅ Si cerró el diálogo (opción -1), mostrar advertencia
+                if (option == -1 || option == JOptionPane.CLOSED_OPTION) {
+                    JOptionPane.showMessageDialog(
+                        this,
+                        "Debes elegir REVANCHA o SALIR para continuar",
+                        "Selección Obligatoria",
+                        JOptionPane.WARNING_MESSAGE
+                    );
                 }
+            }
+            
+            if (option == 0) {
+                waitingRoomPanel.reset();
+                cleanupGameState();
+                showPanel("waiting");
             } else {
-                int option = JOptionPane.showOptionDialog(this, 
-                    msg + "\n\n¿Que quieres hacer?", 
+                client.leaveRoom();
+                cleanupGameState();
+                showPanel("lobby");
+            }
+        } else {
+            // ✅ PARA ESPECTADORES: TAMBIÉN OBLIGATORIO
+            int option = -1;
+            while (option != 0 && option != 1) {
+                option = JOptionPane.showOptionDialog(
+                    this, 
+                    msg + "\n\n¿Qué quieres hacer?\n(Debes elegir una opción)", 
                     "Fin del Juego!", 
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.QUESTION_MESSAGE,
                     null,
                     new String[]{"SEGUIR OBSERVANDO", "SALIR"},
-                    "SEGUIR OBSERVANDO");
+                    "SEGUIR OBSERVANDO"
+                );
                 
-                if (option == 0) {
-                    waitingRoomPanel.reset();
-                    cleanupGameState();
-                    showPanel("waiting");
-                } else {
-                    client.leaveRoom();
-                    cleanupGameState();
-                    showPanel("lobby");
+                if (option == -1 || option == JOptionPane.CLOSED_OPTION) {
+                    JOptionPane.showMessageDialog(
+                        this,
+                        "Debes elegir una opción para continuar",
+                        "Selección Obligatoria",
+                        JOptionPane.WARNING_MESSAGE
+                    );
                 }
             }
-        });
-    }
+            
+            if (option == 0) {
+                waitingRoomPanel.reset();
+                cleanupGameState();
+                showPanel("waiting");
+            } else {
+                client.leaveRoom();
+                cleanupGameState();
+                showPanel("lobby");
+            }
+        }
+    });
+}
     
     public void onGameStateUpdate(GameState s) { 
         updatePlayerPanels(s); 

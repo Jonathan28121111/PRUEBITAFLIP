@@ -393,58 +393,59 @@ class GameRoomInstance implements GameLogic.GameEventListener {
         return name + n;
     }
     
-    public void removePlayer(int clientId) {
-        ClientHandler handler = players.remove(clientId);
-        Integer playerId = clientToPlayerId.remove(clientId);
-        readyPlayers.remove(clientId);
-        
-        if (handler == null || playerId == null) {
-            return;
-        }
-        
-        String playerName = handler.getPlayerName();
-        room.removePlayer(playerName);
-        gameLogic.removePlayer(playerId);
-        
-        GameMessage msg = new GameMessage(GameMessage.MessageType.PLAYER_LEFT);
-        msg.setPlayerId(playerId);
-        msg.setPlayerName(playerName);
-        broadcast(msg);
-        
-        // CASO 1: Juego en curso con 1 jugador restante
-        if (room.isGameStarted() && players.size() == 1) {
-            ClientHandler winnerHandler = players.values().iterator().next();
-            Integer winnerPlayerId = null;
-            
-            for (Map.Entry<Integer, Integer> entry : clientToPlayerId.entrySet()) {
-                if (players.containsKey(entry.getKey())) {
-                    winnerPlayerId = entry.getValue();
-                    break;
-                }
-            }
-            
-            if (winnerPlayerId != null) {
-                Player winnerPlayer = findPlayerById(winnerPlayerId);
-                Player leaverPlayer = findPlayerById(playerId);
-                
-                if (winnerPlayer != null) {
-                    System.out.println("[GAME] " + winnerPlayer.getName() + " gana por abandono!");
-                    broadcast(GameMessage.gameEnd(gameLogic.getGameState().getPlayers(), winnerPlayerId));
-                    
-                    updatePlayerStats(winnerHandler, true, winnerPlayer);
-                    updatePlayerStats(handler, false, leaverPlayer);
-                    
-                    endGame();
-                }
-            }
-        }
-        // CASO 2: No quedan jugadores
-        else if (room.isGameStarted() && players.isEmpty()) {
-            System.out.println("[GAME] Sala [" + room.getRoomId() + "] sin jugadores, finalizando juego");
-            endGame();
-        }
+   public void removePlayer(int clientId) {
+    ClientHandler handler = players.remove(clientId);
+    Integer playerId = clientToPlayerId.remove(clientId);
+    readyPlayers.remove(clientId);
+    
+    if (handler == null || playerId == null) {
+        return;
     }
     
+    String playerName = handler.getPlayerName();
+    room.removePlayer(playerName);
+    gameLogic.removePlayer(playerId);
+    
+    GameMessage msg = new GameMessage(GameMessage.MessageType.PLAYER_LEFT);
+    msg.setPlayerId(playerId);
+    msg.setPlayerName(playerName);
+    broadcast(msg);
+    
+    // CASO 1: Juego en curso con 1 jugador restante
+    if (room.isGameStarted() && players.size() == 1) {
+        ClientHandler winnerHandler = players.values().iterator().next();
+        Integer winnerPlayerId = null;
+        
+        for (Map.Entry<Integer, Integer> entry : clientToPlayerId.entrySet()) {
+            if (players.containsKey(entry.getKey())) {
+                winnerPlayerId = entry.getValue();
+                break;
+            }
+        }
+        
+        if (winnerPlayerId != null) {
+            Player winnerPlayer = findPlayerById(winnerPlayerId);
+            Player leaverPlayer = findPlayerById(playerId);
+            
+            if (winnerPlayer != null) {
+                System.out.println("[GAME] " + winnerPlayer.getName() + " gana por abandono!");
+                
+               
+                broadcast(GameMessage.gameEnd(gameLogic.getGameState().getPlayers(), winnerPlayerId));
+                
+                updatePlayerStats(winnerHandler, true, winnerPlayer);
+                updatePlayerStats(handler, false, leaverPlayer);
+                
+                endGame();
+            }
+        }
+    }
+    // CASO 2: No quedan jugadores
+    else if (room.isGameStarted() && players.isEmpty()) {
+        System.out.println("[GAME] Sala [" + room.getRoomId() + "] sin jugadores, finalizando juego");
+        endGame();
+    }
+}
     private Player findPlayerById(int playerId) {
         for (Player p : gameLogic.getGameState().getPlayers()) {
             if (p.getId() == playerId) {

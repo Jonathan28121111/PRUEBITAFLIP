@@ -382,8 +382,38 @@ public class GameLogic {
             return;
         }
         
+        // ✅ NUEVO: El siguiente dealer es quien hizo MÁS puntos en esta ronda
+        int nextDealerIndex = findPlayerWithMostRoundPoints();
+        if (nextDealerIndex != -1) {
+            gameState.setDealerIndex(nextDealerIndex);
+        } else {
+            // Fallback: rotar normal si no se puede determinar
+            gameState.setDealerIndex((gameState.getDealerIndex() + 1) % gameState.getPlayers().size());
+        }
+        
         gameState.setRoundNumber(gameState.getRoundNumber() + 1);
-        gameState.setDealerIndex((gameState.getDealerIndex() + 1) % gameState.getPlayers().size());
+    }
+    
+    /**
+     * ✅ NUEVO: Encuentra al jugador que hizo más puntos en la ronda actual
+     */
+    private int findPlayerWithMostRoundPoints() {
+        List<Player> players = gameState.getPlayers();
+        int maxPoints = -1;
+        int winnerIndex = -1;
+        
+        for (int i = 0; i < players.size(); i++) {
+            Player p = players.get(i);
+            if (p.isConnected()) {
+                int roundScore = p.getRoundScore();
+                if (roundScore > maxPoints) {
+                    maxPoints = roundScore;
+                    winnerIndex = i;
+                }
+            }
+        }
+        
+        return winnerIndex;
     }
     
     public void startNextRound() {
