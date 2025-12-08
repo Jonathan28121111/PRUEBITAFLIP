@@ -30,6 +30,7 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
     private JLabel turnIndicator;
     private JTextArea chatArea;
     private JTextField chatInput;
+    private RankingsPanel rankingsPanel;
     
     private static final Color BLUE_LIGHT = new Color(135, 206, 250);
     private static final Color BLUE_DARK = new Color(66, 133, 244);
@@ -115,6 +116,20 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
             public void onRefresh() {
                 client.requestRooms();
             }
+            // ✅ AGREGADO: implementación del método faltante
+            public void onViewRankings() {
+                client.requestRankings();
+                showPanel("rankings");
+            }
+        });
+        
+        rankingsPanel = new RankingsPanel(new RankingsPanel.RankingsListener() {
+            public void onBack() {
+                showPanel("lobby");
+            }
+            public void onRefresh() {
+                client.requestRankings();
+            }
         });
         
         // 3. Sala de espera
@@ -139,7 +154,7 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
         
         // 4. Pantalla de juego
         gamePanel = createGamePanel();
-        
+        mainContainer.add(rankingsPanel, "rankings");
         mainContainer.add(loginPanel, "login");
         mainContainer.add(lobbyPanel, "lobby");
         mainContainer.add(waitingRoomPanel, "waiting");
@@ -318,51 +333,56 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
         return right;
     }
     
-   private JPanel createControls() {
-    JPanel controls = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 15)) {
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g;
-            g2.setColor(Color.WHITE);
-            g2.fillRect(0, 0, getWidth(), getHeight());
-            g2.setColor(new Color(100, 180, 246));
-            g2.fillRect(0, 0, getWidth(), 4);
-        }
-    };
-    controls.setBorder(new EmptyBorder(12, 0, 18, 0));
+    // ✅ CORREGIDO: Usar java.util.List explícitamente
+    @Override
+    public void onRankingsReceived(java.util.List<User> rankings) {
+        rankingsPanel.updateRankings(rankings);
+    }
     
-    readyBtn = createButton("LISTO", GREEN);
-    hitBtn = createButton("🂠 PEDIR CARTA", BLUE_DARK);
-    standBtn = createButton("✋ PLANTARSE", ORANGE);
-    JButton backBtn = createButton("SALIR", RED);
-    
-    readyBtn.addActionListener(e -> {
-        client.ready();
+    private JPanel createControls() {
+        JPanel controls = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 15)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setColor(Color.WHITE);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.setColor(new Color(100, 180, 246));
+                g2.fillRect(0, 0, getWidth(), 4);
+            }
+        };
+        controls.setBorder(new EmptyBorder(12, 0, 18, 0));
+        
+        readyBtn = createButton("LISTO", GREEN);
+        hitBtn = createButton("🂠 PEDIR CARTA", BLUE_DARK);
+        standBtn = createButton("✋ PLANTARSE", ORANGE);
+        JButton backBtn = createButton("SALIR", RED);
+        
+        readyBtn.addActionListener(e -> {
+            client.ready();
+            readyBtn.setEnabled(false);
+            readyBtn.setText("ESPERANDO...");
+        });
+        hitBtn.addActionListener(e -> { if (isMyTurn) client.hit(); });
+        standBtn.addActionListener(e -> { if (isMyTurn) client.stand(); });
+        
+        backBtn.addActionListener(e -> {
+            client.leaveRoom();
+            gameStarted = false;
+            cleanupGameState();
+            showPanel("lobby");
+        });
+        
         readyBtn.setEnabled(false);
-        readyBtn.setText("ESPERANDO...");
-    });
-    hitBtn.addActionListener(e -> { if (isMyTurn) client.hit(); });
-    standBtn.addActionListener(e -> { if (isMyTurn) client.stand(); });
-    
-    // BOTÓN SALIR MODIFICADO
-    backBtn.addActionListener(e -> {
-        client.leaveRoom();
-        gameStarted = false;
-        cleanupGameState(); // ⭐ AGREGAR ESTA LÍNEA
-        showPanel("lobby");
-    });
-    
-    readyBtn.setEnabled(false);
-    hitBtn.setEnabled(false);
-    standBtn.setEnabled(false);
-    
-    controls.add(backBtn);
-    controls.add(readyBtn);
-    controls.add(hitBtn);
-    controls.add(standBtn);
-    
-    return controls;
-}
+        hitBtn.setEnabled(false);
+        standBtn.setEnabled(false);
+        
+        controls.add(backBtn);
+        controls.add(readyBtn);
+        controls.add(hitBtn);
+        controls.add(standBtn);
+        
+        return controls;
+    }
     
     private JButton createButton(String text, Color color) {
         JButton btn = new JButton(text) {
@@ -397,7 +417,13 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
                 g2.drawString(getText(), (w - fm.stringWidth(getText())) / 2, (h + fm.getAscent() - fm.getDescent()) / 2);
             }
             
-            Color brighter(Color c, float f) { return new Color(Math.min(255,(int)(c.getRed()*f)), Math.min(255,(int)(c.getGreen()*f)), Math.min(255,(int)(c.getBlue()*f))); }
+            Color brighter(Color c, float f) { 
+                return new Color(
+                    Math.min(255,(int)(c.getRed()*f)), 
+                    Math.min(255,(int)(c.getGreen()*f)), 
+                    Math.min(255,(int)(c.getBlue()*f))
+                ); 
+            }
         };
         
         btn.setFont(new Font("Arial", Font.BOLD, 14));
@@ -417,110 +443,112 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
         });
     }
     
-private void updatePlayerPanels(GameState s) {
-    if (s == null) return;
-    SwingUtilities.invokeLater(() -> {
-        java.util.List<Player> players = s.getPlayers();
-        
-        // Filtrar solo jugadores conectados
-        java.util.List<Player> connectedPlayers = new java.util.ArrayList<>();
-        for (Player p : players) {
-            if (p.isConnected()) {
-                connectedPlayers.add(p);
-            }
-        }
-        
-        // Si cambió la cantidad de jugadores, reconstruir paneles
-        if (playerPanels.size() != connectedPlayers.size()) {
-            playersPanel.removeAll();
-            playerPanels.clear();
+    private void updatePlayerPanels(GameState s) {
+        if (s == null) return;
+        SwingUtilities.invokeLater(() -> {
+            java.util.List<Player> players = s.getPlayers();
             
+            // Filtrar solo jugadores conectados
+            java.util.List<Player> connectedPlayers = new java.util.ArrayList<>();
+            for (Player p : players) {
+                if (p.isConnected()) {
+                    connectedPlayers.add(p);
+                }
+            }
+            
+            // Si cambió la cantidad de jugadores, reconstruir paneles
+            if (playerPanels.size() != connectedPlayers.size()) {
+                playersPanel.removeAll();
+                playerPanels.clear();
+                
+                for (Player p : connectedPlayers) {
+                    PlayerPanel pp = new PlayerPanel(p.getId() == myPlayerId);
+                    pp.setPlayer(p);
+                    playerPanels.put(p.getId(), pp);
+                    playersPanel.add(pp);
+                }
+                
+                // Llenar espacios vacíos
+                for (int i = connectedPlayers.size(); i < 6; i++) {
+                    JPanel empty = new JPanel();
+                    empty.setOpaque(false);
+                    playersPanel.add(empty);
+                }
+                playersPanel.revalidate();
+            }
+            
+            // Actualizar paneles existentes
+            Player curr = s.getCurrentPlayer();
             for (Player p : connectedPlayers) {
-                PlayerPanel pp = new PlayerPanel(p.getId() == myPlayerId);
-                pp.setPlayer(p);
-                playerPanels.put(p.getId(), pp);
-                playersPanel.add(pp);
+                PlayerPanel pp = playerPanels.get(p.getId());
+                if (pp != null) {
+                    pp.setPlayer(p);
+                    pp.setCurrentTurn(curr != null && curr.getId() == p.getId());
+                }
             }
             
-            // Llenar espacios vacíos
-            for (int i = connectedPlayers.size(); i < 6; i++) {
-                JPanel empty = new JPanel();
-                empty.setOpaque(false);
-                playersPanel.add(empty);
-            }
-            playersPanel.revalidate();
-        }
-        
-        // Actualizar paneles existentes
-        Player curr = s.getCurrentPlayer();
-        for (Player p : connectedPlayers) {
-            PlayerPanel pp = playerPanels.get(p.getId());
-            if (pp != null) {
-                pp.setPlayer(p);
-                pp.setCurrentTurn(curr != null && curr.getId() == p.getId());
-            }
-        }
-        
-        infoPanel.updateGameState(s);
-        playersPanel.repaint();
-    });
-}
-
+            infoPanel.updateGameState(s);
+            playersPanel.repaint();
+        });
+    }
+    
     // === LISTENERS ===
     public void onConnected(int id, String name) {
         // Solo conexión TCP establecida, esperar login
     }
     
-public void onLoginSuccess(User user) {
-    SwingUtilities.invokeLater(() -> {
-        myPlayerId = user.getId();
-        client.setPlayerName(user.getUsername());
-        lobbyPanel.setPlayerName(user.getUsername());
-        showPanel("lobby");
-        infoPanel.log("Conexión establecida");
-        infoPanel.log("  Partidas: " + user.getGamesPlayed() + " | Ganadas: " + user.getGamesWon());
-    });
-}
+    public void onLoginSuccess(User user) {
+        SwingUtilities.invokeLater(() -> {
+            myPlayerId = user.getId();
+            client.setPlayerName(user.getUsername());
+            lobbyPanel.setPlayerName(user.getUsername());
+            showPanel("lobby");
+            infoPanel.log("Conexión establecida");
+            infoPanel.log("  Partidas: " + user.getGamesPlayed() + " | Ganadas: " + user.getGamesWon());
+        });
+    }
     
     public void onLoginFailed(String reason) {
         loginPanel.onLoginFailed(reason);
     }
     
-public void onRegisterSuccess(User user) {
-    SwingUtilities.invokeLater(() -> {
-        loginPanel.resetButtons();
-        
-        JOptionPane.showMessageDialog(this, 
-            "Usuario registrado correctamente!", 
-            "Registro Exitoso", 
-            JOptionPane.INFORMATION_MESSAGE);
-        
-        myPlayerId = user.getId();
-        client.setPlayerName(user.getUsername());
-        lobbyPanel.setPlayerName(user.getUsername());
-        showPanel("lobby");
-        infoPanel.log("Registro exitoso!");
-    });
-}//holajajaja
-private void cleanupGameState() {
-    SwingUtilities.invokeLater(() -> {
-        playersPanel.removeAll();
-        playerPanels.clear();
-        
-        // Llenar con paneles vacíos
-        for (int i = 0; i < 6; i++) {
-            JPanel empty = new JPanel();
-            empty.setOpaque(false);
-            playersPanel.add(empty);
-        }
-        
-        playersPanel.revalidate();
-        playersPanel.repaint();
-        
-        chatArea.setText("");
-        turnIndicator.setText("");
-    });
-} 
+    public void onRegisterSuccess(User user) {
+        SwingUtilities.invokeLater(() -> {
+            loginPanel.resetButtons();
+            
+            JOptionPane.showMessageDialog(this, 
+                "Usuario registrado correctamente!", 
+                "Registro Exitoso", 
+                JOptionPane.INFORMATION_MESSAGE);
+            
+            myPlayerId = user.getId();
+            client.setPlayerName(user.getUsername());
+            lobbyPanel.setPlayerName(user.getUsername());
+            showPanel("lobby");
+            infoPanel.log("Registro exitoso!");
+        });
+    }
+    
+    private void cleanupGameState() {
+        SwingUtilities.invokeLater(() -> {
+            playersPanel.removeAll();
+            playerPanels.clear();
+            
+            // Llenar con paneles vacíos
+            for (int i = 0; i < 6; i++) {
+                JPanel empty = new JPanel();
+                empty.setOpaque(false);
+                playersPanel.add(empty);
+            }
+            
+            playersPanel.revalidate();
+            playersPanel.repaint();
+            
+            chatArea.setText("");
+            turnIndicator.setText("");
+        });
+    } 
+    
     public void onRegisterFailed(String reason) {
         loginPanel.onRegisterFailed(reason);
     }
@@ -550,7 +578,6 @@ private void cleanupGameState() {
     public void onRoomJoined(GameRoom room, int playerId) {
         SwingUtilities.invokeLater(() -> {
             myPlayerId = playerId;
-            // Si playerId es -1, es espectador. Si es >= 0, es jugador
             isSpectator = (playerId < 0);
             waitingRoomPanel.setSpectator(isSpectator);
             waitingRoomPanel.updateRoom(room);
@@ -568,26 +595,28 @@ private void cleanupGameState() {
         });
     }
     
-    public void onPlayerJoined(int id, String name) { infoPanel.log("+ " + name + " se unió"); }
-public void onPlayerLeft(int id, String name) { 
-    SwingUtilities.invokeLater(() -> {
-        infoPanel.log("- " + name + " salió");
-        
-      
-        PlayerPanel panel = playerPanels.remove(id);
-        if (panel != null) {
-            playersPanel.remove(panel);
+    public void onPlayerJoined(int id, String name) { 
+        infoPanel.log("+ " + name + " se unió"); 
+    }
+    
+    public void onPlayerLeft(int id, String name) { 
+        SwingUtilities.invokeLater(() -> {
+            infoPanel.log("- " + name + " salió");
             
-            // Agregar panel vacío para mantener el grid
-            JPanel empty = new JPanel();
-            empty.setOpaque(false);
-            playersPanel.add(empty);
-            
-            playersPanel.revalidate();
-            playersPanel.repaint();
-        }
-    });
-}
+            PlayerPanel panel = playerPanels.remove(id);
+            if (panel != null) {
+                playersPanel.remove(panel);
+                
+                // Agregar panel vacío para mantener el grid
+                JPanel empty = new JPanel();
+                empty.setOpaque(false);
+                playersPanel.add(empty);
+                
+                playersPanel.revalidate();
+                playersPanel.repaint();
+            }
+        });
+    }
     
     public void onGameStart(java.util.List<Player> players) {
         SwingUtilities.invokeLater(() -> {
@@ -599,7 +628,9 @@ public void onPlayerLeft(int id, String name) {
         });
     }
     
-    public void onRoundStart(int round) { infoPanel.log("\n─── RONDA " + round + " ───"); }
+    public void onRoundStart(int round) { 
+        infoPanel.log("\n─── RONDA " + round + " ───"); 
+    }
     
     public void onYourTurn(int id) {
         SwingUtilities.invokeLater(() -> {
@@ -620,29 +651,50 @@ public void onPlayerLeft(int id, String name) {
     
     public void onCardDealt(int id, Card c) {
         GameState s = client.getCurrentGameState();
-        if (s != null) { Player p = s.getPlayerById(id); if (p != null) infoPanel.log(p.getName() + " ← " + c); }
+        if (s != null) { 
+            Player p = s.getPlayerById(id); 
+            if (p != null) infoPanel.log(p.getName() + " ← " + c); 
+        }
     }
     
     public void onPlayerBusted(int id, Card c) {
         GameState s = client.getCurrentGameState();
-        if (s != null) { Player p = s.getPlayerById(id); if (p != null) infoPanel.log("X " + p.getName() + " ELIMINADO con " + c); }
-        if (id == myPlayerId) { isMyTurn = false; updateControls(); }
+        if (s != null) { 
+            Player p = s.getPlayerById(id); 
+            if (p != null) infoPanel.log("X " + p.getName() + " ELIMINADO con " + c); 
+        }
+        if (id == myPlayerId) { 
+            isMyTurn = false; 
+            updateControls(); 
+        }
     }
     
     public void onPlayerStand(int id) {
         GameState s = client.getCurrentGameState();
-        if (s != null) { Player p = s.getPlayerById(id); if (p != null) infoPanel.log(p.getName() + " se planto"); }
-        if (id == myPlayerId) { isMyTurn = false; updateControls(); }
+        if (s != null) { 
+            Player p = s.getPlayerById(id); 
+            if (p != null) infoPanel.log(p.getName() + " se planto"); 
+        }
+        if (id == myPlayerId) { 
+            isMyTurn = false; 
+            updateControls(); 
+        }
     }
     
     public void onPlayerFrozen(int id) {
         GameState s = client.getCurrentGameState();
-        if (s != null) { Player p = s.getPlayerById(id); if (p != null) infoPanel.log(p.getName() + " CONGELADO"); }
+        if (s != null) { 
+            Player p = s.getPlayerById(id); 
+            if (p != null) infoPanel.log(p.getName() + " CONGELADO"); 
+        }
     }
     
     public void onActionCardDrawn(int id, Card c) {
         GameState s = client.getCurrentGameState();
-        if (s != null) { Player p = s.getPlayerById(id); if (p != null) infoPanel.log("* " + p.getName() + " -> " + c); }
+        if (s != null) { 
+            Player p = s.getPlayerById(id); 
+            if (p != null) infoPanel.log("* " + p.getName() + " -> " + c); 
+        }
     }
     
     public void onChooseActionTarget(Card card, java.util.List<Player> active) {
@@ -650,93 +702,114 @@ public void onPlayerLeft(int id, String name) {
         SwingUtilities.invokeLater(() -> {
             String[] opts = new String[active.size()];
             for (int i = 0; i < active.size(); i++) opts[i] = active.get(i).getName();
-            String sel = (String) JOptionPane.showInputDialog(this, "¿A quién asignas " + card + "?", "Carta de Acción", JOptionPane.QUESTION_MESSAGE, null, opts, opts[0]);
-            if (sel != null) for (Player p : active) if (p.getName().equals(sel)) { client.assignActionCard(p.getId(), card); break; }
+            String sel = (String) JOptionPane.showInputDialog(this, "¿A quién asignas " + card + "?", 
+                "Carta de Acción", JOptionPane.QUESTION_MESSAGE, null, opts, opts[0]);
+            if (sel != null) {
+                for (Player p : active) {
+                    if (p.getName().equals(sel)) { 
+                        client.assignActionCard(p.getId(), card); 
+                        break; 
+                    }
+                }
+            }
         });
     }
     
     public void onRoundEnd(java.util.List<Player> players, int round) {
         SwingUtilities.invokeLater(() -> {
-            isMyTurn = false; turnIndicator.setText(""); updateControls();
+            isMyTurn = false; 
+            turnIndicator.setText(""); 
+            updateControls();
             infoPanel.log("\n─── FIN RONDA " + round + " ───");
             for (Player p : players) infoPanel.log("  " + p.getName() + ": +" + p.getRoundScore() + " → " + p.getTotalScore());
             infoPanel.showScoreboard(players);
         });
     }
     
-   public void onGameEnd(java.util.List<Player> players, int winnerId) {
-    SwingUtilities.invokeLater(() -> {
-        gameStarted = false; 
-        isMyTurn = false; 
-        updateControls();
-        
-        Player w = null; 
-        for (Player p : players) {
-            if (p.getId() == winnerId) { 
-                w = p; 
-                break; 
-            }
-        }
-        
-        String msg = w != null ? w.getName() + " GANA con " + w.getTotalScore() + " pts!" : "Fin";
-        infoPanel.log("\n*** " + msg + " ***\n");
-        
-        if (!isSpectator) {
-            int option = JOptionPane.showOptionDialog(this, 
-                msg + "\n\n¿Quieres jugar otra partida?", 
-                "Fin del Juego!", 
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE,
-                null,
-                new String[]{"REVANCHA", "SALIR"},
-                "REVANCHA");
+    public void onGameEnd(java.util.List<Player> players, int winnerId) {
+        SwingUtilities.invokeLater(() -> {
+            gameStarted = false; 
+            isMyTurn = false; 
+            updateControls();
             
-            if (option == 0) {
-                // Revancha
-                waitingRoomPanel.reset();
-                cleanupGameState(); // ⭐ AGREGAR
-                showPanel("waiting");
-            } else {
-                // Salir
-                client.leaveRoom();
-                cleanupGameState(); // ⭐ AGREGAR
-                showPanel("lobby");
+            Player w = null; 
+            for (Player p : players) {
+                if (p.getId() == winnerId) { 
+                    w = p; 
+                    break; 
+                }
             }
-        } else {
-            int option = JOptionPane.showOptionDialog(this, 
-                msg + "\n\n¿Que quieres hacer?", 
-                "Fin del Juego!", 
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE,
-                null,
-                new String[]{"SEGUIR OBSERVANDO", "SALIR"},
-                "SEGUIR OBSERVANDO");
             
-            if (option == 0) {
-                waitingRoomPanel.reset();
-                cleanupGameState(); // ⭐ AGREGAR
-                showPanel("waiting");
+            String msg = w != null ? w.getName() + " GANA con " + w.getTotalScore() + " pts!" : "Fin";
+            infoPanel.log("\n*** " + msg + " ***\n");
+            
+            if (!isSpectator) {
+                int option = JOptionPane.showOptionDialog(this, 
+                    msg + "\n\n¿Quieres jugar otra partida?", 
+                    "Fin del Juego!", 
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    new String[]{"REVANCHA", "SALIR"},
+                    "REVANCHA");
+                
+                if (option == 0) {
+                    waitingRoomPanel.reset();
+                    cleanupGameState();
+                    showPanel("waiting");
+                } else {
+                    client.leaveRoom();
+                    cleanupGameState();
+                    showPanel("lobby");
+                }
             } else {
-                client.leaveRoom();
-                cleanupGameState(); // ⭐ AGREGAR
-                showPanel("lobby");
+                int option = JOptionPane.showOptionDialog(this, 
+                    msg + "\n\n¿Que quieres hacer?", 
+                    "Fin del Juego!", 
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    new String[]{"SEGUIR OBSERVANDO", "SALIR"},
+                    "SEGUIR OBSERVANDO");
+                
+                if (option == 0) {
+                    waitingRoomPanel.reset();
+                    cleanupGameState();
+                    showPanel("waiting");
+                } else {
+                    client.leaveRoom();
+                    cleanupGameState();
+                    showPanel("lobby");
+                }
             }
-        }
-    });
-}
+        });
+    }
     
-    public void onGameStateUpdate(GameState s) { updatePlayerPanels(s); }
+    public void onGameStateUpdate(GameState s) { 
+        updatePlayerPanels(s); 
+    }
     
     public void onChatMessage(int id, String name, String msg) {
-        SwingUtilities.invokeLater(() -> { chatArea.append(name + ": " + msg + "\n"); chatArea.setCaretPosition(chatArea.getDocument().getLength()); });
+        SwingUtilities.invokeLater(() -> { 
+            chatArea.append(name + ": " + msg + "\n"); 
+            chatArea.setCaretPosition(chatArea.getDocument().getLength()); 
+        });
     }
     
     public void onError(String msg) {
-        SwingUtilities.invokeLater(() -> { infoPanel.log("! " + msg); JOptionPane.showMessageDialog(this, msg, "Error", JOptionPane.ERROR_MESSAGE); });
+        SwingUtilities.invokeLater(() -> { 
+            infoPanel.log("! " + msg); 
+            JOptionPane.showMessageDialog(this, msg, "Error", JOptionPane.ERROR_MESSAGE); 
+        });
     }
     
     public static void main(String[] args) {
-        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
-        SwingUtilities.invokeLater(() -> { GameWindow w = new GameWindow(); w.setVisible(true); });
+        try { 
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); 
+        } catch (Exception e) {}
+        SwingUtilities.invokeLater(() -> { 
+            GameWindow w = new GameWindow(); 
+            w.setVisible(true); 
+        });
     }
 }

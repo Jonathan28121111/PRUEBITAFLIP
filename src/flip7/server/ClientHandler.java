@@ -11,6 +11,7 @@ public class ClientHandler implements Runnable {
     private ObjectOutputStream out;
     private int clientId;
     private int playerId = -1;
+    private int userId = -1;
     private String playerName;
     private String currentRoomId;
     private boolean connected;
@@ -122,6 +123,10 @@ public class ClientHandler implements Runnable {
                 }
                 break;
                 
+            case GET_RANKINGS:
+                server.sendRankings(clientId);
+                break;
+                
             case DISCONNECT:
                 disconnect();
                 break;
@@ -153,14 +158,52 @@ public class ClientHandler implements Runnable {
         } catch (IOException e) {}
     }
     
-    public int getClientId() { return clientId; }
-    public int getPlayerId() { return playerId; }
-    public void setPlayerId(int id) { this.playerId = id; }
-    public String getPlayerName() { return playerName; }
-    public void setPlayerName(String name) { this.playerName = name; }
-    public String getCurrentRoomId() { return currentRoomId; }
-    public void setCurrentRoomId(String roomId) { this.currentRoomId = roomId; }
-    public boolean isConnected() { return connected; }
-    public boolean isSpectator() { return isSpectator; }
-    public void setSpectator(boolean spectator) { this.isSpectator = spectator; }
+    // ===== GETTERS Y SETTERS =====
+    public int getClientId() { 
+        return clientId; 
+    }
+    
+    public int getPlayerId() { 
+        return playerId; 
+    }
+    
+    public void setPlayerId(int id) { 
+        this.playerId = id; 
+    }
+    
+    public int getUserId() { 
+        return userId; 
+    }
+    
+    public void setUserId(int id) { 
+        this.userId = id; 
+    }
+    
+    public String getPlayerName() { 
+        return playerName; 
+    }
+    
+    public void setPlayerName(String name) { 
+        this.playerName = name; 
+    }
+    
+    public String getCurrentRoomId() { 
+        return currentRoomId; 
+    }
+    
+    public void setCurrentRoomId(String roomId) { 
+        this.currentRoomId = roomId; 
+    }
+    
+    public boolean isConnected() { 
+        return connected; 
+    }
+    
+    public boolean isSpectator() { 
+        return isSpectator; 
+    }
+    
+    public void setSpectator(boolean spectator) { 
+        this.isSpectator = spectator; 
+    }
 }

@@ -46,9 +46,10 @@ public class GameServer {
         User user = database.login(username, password);
         if (user != null) {
             handler.setPlayerName(username);
+            handler.setUserId(user.getId());
             handler.sendMessage(GameMessage.loginSuccess(user));
             sendRoomList(handler.getClientId());
-            System.out.println("[LOGIN] " + username + " conectado");
+            System.out.println("[LOGIN] " + username + " conectado (ID: " + user.getId() + ")");
         } else {
             handler.sendMessage(GameMessage.loginFailed("Usuario o password incorrectos"));
         }
@@ -67,9 +68,10 @@ public class GameServer {
         User user = database.register(username.trim(), password);
         if (user != null) {
             handler.setPlayerName(username);
+            handler.setUserId(user.getId());
             handler.sendMessage(GameMessage.registerSuccess(user));
             sendRoomList(handler.getClientId());
-            System.out.println("[REGISTER] " + username + " registrado");
+            System.out.println("[REGISTER] " + username + " registrado (ID: " + user.getId() + ")");
         } else {
             handler.sendMessage(GameMessage.registerFailed("El usuario ya existe"));
         }
@@ -89,7 +91,6 @@ public class GameServer {
         }
     }
     
-    // Retorna TODAS las salas para que espectadores puedan ver las llenas/en juego
     public List<GameRoom> getAllRooms() {
         List<GameRoom> all = new ArrayList<>();
         for (GameRoomInstance room : rooms.values()) {
@@ -123,6 +124,14 @@ public class GameServer {
         return room;
     }
     
+    public void sendRankings(int clientId) {
+        ClientHandler handler = allClients.get(clientId);
+        if (handler != null) {
+            List<User> rankings = database.getRankings(100);
+            handler.sendMessage(GameMessage.rankingsResponse(rankings));
+        }
+    }
+    
     public boolean joinRoom(int clientId, String roomId, String playerName, boolean asSpectator) {
         ClientHandler handler = allClients.get(clientId);
         GameRoomInstance instance = rooms.get(roomId);
@@ -140,7 +149,6 @@ public class GameServer {
         GameRoom room = instance.getRoom();
         
         if (asSpectator) {
-            // Espectador: puede unirse siempre, incluso con juego en curso
             instance.addSpectator(handler, playerName);
             handler.setCurrentRoomId(roomId);
             handler.setPlayerId(-1);
@@ -151,7 +159,6 @@ public class GameServer {
             instance.broadcastRoomUpdate();
             broadcastRoomList();
             
-            // Si el juego ya está en curso, enviar el estado actual
             if (room.isGameStarted()) {
                 handler.sendMessage(GameMessage.gameStart(instance.getGameLogic().getGameState().getPlayers()));
                 handler.sendMessage(GameMessage.gameState(instance.getGameLogic().getGameState()));
@@ -160,7 +167,6 @@ public class GameServer {
             return true;
             
         } else {
-            // Jugador normal
             if (room.isFull()) {
                 handler.sendMessage(GameMessage.roomError("Sala llena"));
                 return false;
@@ -264,7 +270,9 @@ public class GameServer {
         }
     }
     
-    public DatabaseManager getDatabase() { return database; }
+    public DatabaseManager getDatabase() { 
+        return database; 
+    }
     
     public static void main(String[] args) {
         new GameServer().start();
@@ -287,9 +295,17 @@ class GameRoomInstance implements GameLogic.GameEventListener {
         this.gameLogic.addListener(this);
     }
     
-    public GameRoom getRoom() { return room; }
-    public GameLogic getGameLogic() { return gameLogic; }
-    public boolean isEmpty() { return players.isEmpty() && spectators.isEmpty(); }
+    public GameRoom getRoom() { 
+        return room; 
+    }
+    
+    public GameLogic getGameLogic() { 
+        return gameLogic; 
+    }
+    
+    public boolean isEmpty() { 
+        return players.isEmpty() && spectators.isEmpty(); 
+    }
     
     public int addPlayer(ClientHandler handler, String name) {
         String uniqueName = makeUniqueName(name);
@@ -320,7 +336,6 @@ class GameRoomInstance implements GameLogic.GameEventListener {
         spectators.put(handler.getClientId(), handler);
         room.addSpectator(name);
         
-        // Enviar estado actual del juego al espectador
         handler.sendMessage(GameMessage.gameState(gameLogic.getGameState()));
     }
     
@@ -340,52 +355,91 @@ class GameRoomInstance implements GameLogic.GameEventListener {
         Integer playerId = clientToPlayerId.remove(clientId);
         readyPlayers.remove(clientId);
         
-        if (handler != null && playerId != null) {
-            String playerName = handler.getPlayerName();
-            room.removePlayer(playerName);
-            gameLogic.removePlayer(playerId);
+        if (handler == null || playerId == null) {
+            return;
+        }
+        
+        String playerName = handler.getPlayerName();
+        room.removePlayer(playerName);
+        gameLogic.removePlayer(playerId);
+        
+        GameMessage msg = new GameMessage(GameMessage.MessageType.PLAYER_LEFT);
+        msg.setPlayerId(playerId);
+        msg.setPlayerName(playerName);
+        broadcast(msg);
+        
+        // CASO 1: Juego en curso con 1 jugador restante
+        if (room.isGameStarted() && players.size() == 1) {
+            ClientHandler winnerHandler = players.values().iterator().next();
+            Integer winnerPlayerId = null;
             
-            GameMessage msg = new GameMessage(GameMessage.MessageType.PLAYER_LEFT);
-            msg.setPlayerId(playerId);
-            msg.setPlayerName(playerName);
-            broadcast(msg);
-            
-            // Si el juego estaba en curso y solo queda 1 jugador, ese jugador gana
-            if (room.isGameStarted() && players.size() == 1) {
-                // Obtener el jugador restante
-                ClientHandler winner = players.values().iterator().next();
-                Integer winnerPlayerId = null;
-                for (Map.Entry<Integer, Integer> entry : clientToPlayerId.entrySet()) {
-                    if (players.containsKey(entry.getKey())) {
-                        winnerPlayerId = entry.getValue();
-                        break;
-                    }
+            for (Map.Entry<Integer, Integer> entry : clientToPlayerId.entrySet()) {
+                if (players.containsKey(entry.getKey())) {
+                    winnerPlayerId = entry.getValue();
+                    break;
                 }
+            }
+            
+            if (winnerPlayerId != null) {
+                Player winnerPlayer = findPlayerById(winnerPlayerId);
+                Player leaverPlayer = findPlayerById(playerId);
                 
-                if (winnerPlayerId != null) {
-                    Player winnerPlayer = null;
-                    for (Player p : gameLogic.getGameState().getPlayers()) {
-                        if (p.getId() == winnerPlayerId) {
-                            winnerPlayer = p;
-                            break;
-                        }
-                    }
+                if (winnerPlayer != null) {
+                    System.out.println("[GAME] " + winnerPlayer.getName() + " gana por abandono!");
+                    broadcast(GameMessage.gameEnd(gameLogic.getGameState().getPlayers(), winnerPlayerId));
                     
-                    if (winnerPlayer != null) {
-                        System.out.println("[GAME] " + winnerPlayer.getName() + " gana por abandono!");
-                        broadcast(GameMessage.gameEnd(gameLogic.getGameState().getPlayers(), winnerPlayerId));
-                        room.setGameStarted(false);
-                        readyPlayers.clear();
-                        for (Player p : gameLogic.getGameState().getPlayers()) p.resetForNewGame();
-                        server.onGameEnd(room.getRoomId());
-                    }
+                    updatePlayerStats(winnerHandler, true, winnerPlayer);
+                    updatePlayerStats(handler, false, leaverPlayer);
+                    
+                    endGame();
                 }
-            } else if (room.isGameStarted() && players.size() < 1) {
-                // No quedan jugadores
-                room.setGameStarted(false);
-                readyPlayers.clear();
             }
         }
+        // CASO 2: No quedan jugadores
+        else if (room.isGameStarted() && players.isEmpty()) {
+            System.out.println("[GAME] Sala [" + room.getRoomId() + "] sin jugadores, finalizando juego");
+            endGame();
+        }
+    }
+    
+    private Player findPlayerById(int playerId) {
+        for (Player p : gameLogic.getGameState().getPlayers()) {
+            if (p.getId() == playerId) {
+                return p;
+            }
+        }
+        return null;
+    }
+    
+    private void updatePlayerStats(ClientHandler handler, boolean won, Player player) {
+        if (handler == null || player == null) return;
+        
+        int userId = handler.getUserId();
+        if (userId > 0) {
+            DatabaseManager db = server.getDatabase();
+            int score = player.getTotalScore();
+            
+            boolean updated = db.updateStats(userId, won, score);
+            
+            if (updated) {
+                String result = won ? "Victoria" : "Derrota";
+                System.out.println("[DB] " + result + " registrada: " + handler.getPlayerName() + 
+                                 " (Score: " + score + ")");
+            } else {
+                System.err.println("[DB] Error actualizando stats de: " + handler.getPlayerName());
+            }
+        }
+    }
+    
+    private void endGame() {
+        room.setGameStarted(false);
+        readyPlayers.clear();
+        
+        for (Player p : gameLogic.getGameState().getPlayers()) {
+            p.resetForNewGame();
+        }
+        
+        server.onGameEnd(room.getRoomId());
     }
     
     public void removeSpectator(int clientId) {
@@ -397,7 +451,7 @@ class GameRoomInstance implements GameLogic.GameEventListener {
     
     public void playerReady(int clientId) {
         if (room.isGameStarted()) return;
-        if (!players.containsKey(clientId)) return; // Solo jugadores pueden dar ready
+        if (!players.containsKey(clientId)) return;
         
         readyPlayers.add(clientId);
         System.out.println("[READY] " + room.getRoomId() + ": " + readyPlayers.size() + "/" + players.size());
@@ -450,16 +504,53 @@ class GameRoomInstance implements GameLogic.GameEventListener {
         }
     }
     
-    private void broadcastGameState() { broadcast(GameMessage.gameState(gameLogic.getGameState())); }
+    private void broadcastGameState() { 
+        broadcast(GameMessage.gameState(gameLogic.getGameState())); 
+    }
     
-    public void onCardDealt(int id, Card c) { broadcast(GameMessage.cardDealt(id, c)); broadcastGameState(); }
-    public void onPlayerBusted(int id, Card c) { broadcast(GameMessage.playerBusted(id, c)); broadcastGameState(); }
-    public void onPlayerStand(int id) { GameMessage m = new GameMessage(GameMessage.MessageType.PLAYER_STAND); m.setPlayerId(id); broadcast(m); broadcastGameState(); }
-    public void onPlayerFrozen(int id) { GameMessage m = new GameMessage(GameMessage.MessageType.PLAYER_FROZEN); m.setPlayerId(id); broadcast(m); broadcastGameState(); }
-    public void onActionCardDrawn(int id, Card c) { GameMessage m = new GameMessage(GameMessage.MessageType.ACTION_CARD_DRAWN); m.setPlayerId(id); m.setCard(c); broadcast(m); }
-    public void onTurnChange(int id) { broadcast(GameMessage.yourTurn(id)); broadcastGameState(); }
-    public void onGameStateUpdate(GameState s) { broadcastGameState(); }
-    public void onNeedActionTarget(int id, Card c, java.util.List<Player> a) { sendToPlayer(id, GameMessage.chooseActionTarget(c, a)); }
+    public void onCardDealt(int id, Card c) { 
+        broadcast(GameMessage.cardDealt(id, c)); 
+        broadcastGameState(); 
+    }
+    
+    public void onPlayerBusted(int id, Card c) { 
+        broadcast(GameMessage.playerBusted(id, c)); 
+        broadcastGameState(); 
+    }
+    
+    public void onPlayerStand(int id) { 
+        GameMessage m = new GameMessage(GameMessage.MessageType.PLAYER_STAND); 
+        m.setPlayerId(id); 
+        broadcast(m); 
+        broadcastGameState(); 
+    }
+    
+    public void onPlayerFrozen(int id) { 
+        GameMessage m = new GameMessage(GameMessage.MessageType.PLAYER_FROZEN); 
+        m.setPlayerId(id); 
+        broadcast(m); 
+        broadcastGameState(); 
+    }
+    
+    public void onActionCardDrawn(int id, Card c) { 
+        GameMessage m = new GameMessage(GameMessage.MessageType.ACTION_CARD_DRAWN); 
+        m.setPlayerId(id); 
+        m.setCard(c); 
+        broadcast(m); 
+    }
+    
+    public void onTurnChange(int id) { 
+        broadcast(GameMessage.yourTurn(id)); 
+        broadcastGameState(); 
+    }
+    
+    public void onGameStateUpdate(GameState s) { 
+        broadcastGameState(); 
+    }
+    
+    public void onNeedActionTarget(int id, Card c, java.util.List<Player> a) { 
+        sendToPlayer(id, GameMessage.chooseActionTarget(c, a)); 
+    }
     
     public void onRoundEnd(java.util.List<Player> players, int round) {
         broadcast(GameMessage.roundEnd(players, round));
@@ -478,10 +569,35 @@ class GameRoomInstance implements GameLogic.GameEventListener {
     public void onGameEnd(Player winner) {
         broadcast(GameMessage.gameEnd(gameLogic.getGameState().getPlayers(), winner.getId()));
         
-        room.setGameStarted(false);
-        readyPlayers.clear();
+        DatabaseManager db = server.getDatabase();
         
-        for (Player p : gameLogic.getGameState().getPlayers()) p.resetForNewGame();
-        server.onGameEnd(room.getRoomId());
+        for (Map.Entry<Integer, ClientHandler> entry : players.entrySet()) {
+            ClientHandler handler = entry.getValue();
+            int userId = handler.getUserId();
+            
+            if (userId > 0) {
+                Integer playerId = clientToPlayerId.get(handler.getClientId());
+                
+                if (playerId != null) {
+                    Player player = findPlayerById(playerId);
+                    
+                    if (player != null) {
+                        boolean won = (player.getId() == winner.getId());
+                       int score = player.getTotalScore();
+                        
+                        boolean updated = db.updateStats(userId, won, score);
+                        
+                        if (updated) {
+                            System.out.println("[DB] Stats actualizadas: " + handler.getPlayerName() + 
+                                             " (Won: " + won + ", Score: " + score + ")");
+                        } else {
+                            System.err.println("[DB] Error actualizando stats de: " + handler.getPlayerName());
+                        }
+                    }
+                }
+            }
+        }
+        
+        endGame();
     }
 }

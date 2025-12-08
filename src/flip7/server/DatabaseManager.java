@@ -1,7 +1,10 @@
 package flip7.server;
 
+import flip7.common.EstadisticasUsuario;
 import flip7.common.User;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DatabaseManager {
     private static final String DB_FILE = "flip7.db";
@@ -89,7 +92,41 @@ public class DatabaseManager {
             return null;
         }
     }
+    public synchronized List<User> getRankings(int limit) {
+    List<User> rankings = new ArrayList<>();
+    if (connection == null) return rankings;
     
+    try {
+        String query = "SELECT id, username, games_played, games_won, total_score " +
+                      "FROM users " +
+                      "ORDER BY total_score DESC " +
+                      "LIMIT ?";
+        
+        PreparedStatement stmt = connection.prepareStatement(query);
+        stmt.setInt(1, limit);
+        ResultSet rs = stmt.executeQuery();
+        
+        while (rs.next()) {
+            User user = new User(
+                rs.getInt("id"),
+                rs.getString("username"),
+                rs.getInt("games_played"),
+                rs.getInt("games_won"),
+                rs.getInt("total_score")
+            );
+            rankings.add(user);
+        }
+        
+        rs.close();
+        stmt.close();
+        System.out.println("[DB] Rankings obtenidos: " + rankings.size() + " usuarios");
+        
+    } catch (SQLException e) {
+        System.err.println("[DB] Error obteniendo rankings: " + e.getMessage());
+    }
+    
+    return rankings;
+}
     public synchronized User login(String username, String password) {
         if (connection == null) return null;
         
@@ -128,7 +165,44 @@ public class DatabaseManager {
             return null;
         }
     }
+    public synchronized List<EstadisticasUsuario> obtenerRankings(int limite) {
+    List<EstadisticasUsuario> rankings = new ArrayList<>();
     
+    if (connection == null) return rankings;
+    
+    try {
+        String query = "SELECT id, username, games_played, games_won, total_score " +
+                      "FROM users " +
+                      "WHERE games_played > 0 " +
+                      "ORDER BY games_won DESC, total_score DESC " +
+                      "LIMIT ?";
+        
+        PreparedStatement stmt = connection.prepareStatement(query);
+        stmt.setInt(1, limite);
+        ResultSet rs = stmt.executeQuery();
+        
+        while (rs.next()) {
+            EstadisticasUsuario est = new EstadisticasUsuario(
+                rs.getInt("id"),
+                rs.getString("username"),
+                rs.getInt("games_played"),
+                rs.getInt("games_won"),
+                rs.getInt("total_score")
+            );
+            rankings.add(est);
+        }
+        
+        rs.close();
+        stmt.close();
+        
+        System.out.println("[DB] Rankings obtenidos: " + rankings.size() + " jugadores");
+        
+    } catch (SQLException e) {
+        System.err.println("[DB] Error obteniendo rankings: " + e.getMessage());
+    }
+    
+    return rankings;
+}
     public synchronized boolean updateStats(int userId, boolean won, int score) {
         if (connection == null) return false;
         

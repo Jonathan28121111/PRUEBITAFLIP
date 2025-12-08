@@ -28,6 +28,7 @@ public class GameClient {
         void onRoomJoined(GameRoom room, int playerId);
         void onRoomUpdate(GameRoom room);
         void onRoomError(String error);
+        void onRankingsReceived(List<User> rankings);
     }
     
     public void addListener(GameClientListener l) { listeners.add(l); }
@@ -100,6 +101,10 @@ public class GameClient {
             case GAME_STATE: currentGameState = msg.getGameState(); for (GameClientListener l : listeners) l.onGameStateUpdate(currentGameState); break;
             case CHAT_BROADCAST: for (GameClientListener l : listeners) l.onChatMessage(msg.getPlayerId(), msg.getPlayerName(), msg.getMessage()); break;
             case ERROR: for (GameClientListener l : listeners) l.onError(msg.getMessage()); break;
+            case RANKINGS_RESPONSE: 
+    for (GameClientListener l : listeners) l.onRankingsReceived(msg.getRankings()); 
+    break;
+
         }
     }
     
@@ -142,4 +147,7 @@ public class GameClient {
     public String getCurrentRoomId() { return currentRoomId; }
     public boolean isInRoom() { return currentRoomId != null; }
     public GameState getCurrentGameState() { return currentGameState; }
+    public void requestRankings() { 
+    sendMessage(GameMessage.requestRankings()); 
+}
 }

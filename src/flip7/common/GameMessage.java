@@ -12,7 +12,9 @@ public class GameMessage implements Serializable {
         // Lobby/Salas
         CREATE_ROOM, JOIN_ROOM, LEAVE_ROOM, GET_ROOMS, ROOM_LIST, ROOM_CREATED, ROOM_JOINED, ROOM_UPDATE, ROOM_LEFT, ROOM_ERROR,
         // Juego
-        PLAYER_JOINED, PLAYER_LEFT, GAME_START, ROUND_START, YOUR_TURN, CARD_DEALT, PLAYER_BUSTED, PLAYER_STAND, PLAYER_FROZEN, ACTION_CARD_DRAWN, CHOOSE_ACTION_TARGET, ROUND_END, GAME_END, GAME_STATE, ERROR, CHAT_BROADCAST 
+        PLAYER_JOINED, PLAYER_LEFT, GAME_START, ROUND_START, YOUR_TURN, CARD_DEALT, PLAYER_BUSTED, PLAYER_STAND, PLAYER_FROZEN, ACTION_CARD_DRAWN, CHOOSE_ACTION_TARGET, ROUND_END, GAME_END, GAME_STATE, ERROR, CHAT_BROADCAST,
+        GET_RANKINGS, RANKINGS_RESPONSE
+
     }
     
     private MessageType type; private int playerId, targetPlayerId, roundNumber;
@@ -115,7 +117,19 @@ public class GameMessage implements Serializable {
         m.message = error;
         return m;
     }
-    
+    private List<User> rankings;
+
+public static GameMessage requestRankings() { 
+    return new GameMessage(MessageType.GET_RANKINGS); 
+}
+
+public static GameMessage rankingsResponse(List<User> rankings) {
+    GameMessage m = new GameMessage(MessageType.RANKINGS_RESPONSE);
+    m.rankings = rankings;
+    return m;
+}
+
+public List<User> getRankings() { return rankings; }
     public MessageType getType() { return type; }
     public int getPlayerId() { return playerId; } public void setPlayerId(int id) { playerId = id; }
     public String getPlayerName() { return playerName; } public void setPlayerName(String n) { playerName = n; }

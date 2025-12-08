@@ -25,6 +25,7 @@ public class LobbyPanel extends JPanel {
         void onCreateRoom(String roomName, String playerName, int maxPlayers);
         void onJoinRoom(String roomId, String playerName, boolean asSpectator);
         void onRefresh();
+        void onViewRankings(); // ✅ AGREGADO AQUÍ
     }
     
     public LobbyPanel(LobbyListener listener) {
@@ -61,18 +62,16 @@ public class LobbyPanel extends JPanel {
         nameLabel.setFont(new Font("Arial", Font.PLAIN, 14));
         nameLabel.setForeground(new Color(51, 65, 85));
         
-       nameField = new JTextField(15);
-nameField.setFont(new Font("Arial", Font.PLAIN, 14));
-nameField.setBorder(BorderFactory.createCompoundBorder(
-    BorderFactory.createLineBorder(new Color(203, 213, 225), 2),
-    new EmptyBorder(8, 12, 8, 12)
-));
-nameField.setText("Jugador");
-
-// ✅ BLOQUEAR EDICIÓN
-nameField.setEditable(false);        // no se puede escribir
-nameField.setFocusable(false);       // no se puede seleccionar
-nameField.setBackground(Color.WHITE);
+        nameField = new JTextField(15);
+        nameField.setFont(new Font("Arial", Font.PLAIN, 14));
+        nameField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(203, 213, 225), 2),
+            new EmptyBorder(8, 12, 8, 12)
+        ));
+        nameField.setText("Jugador");
+        nameField.setEditable(false);
+        nameField.setFocusable(false);
+        nameField.setBackground(Color.WHITE);
         
         namePanel.add(nameLabel);
         namePanel.add(nameField);
@@ -175,16 +174,19 @@ nameField.setBackground(Color.WHITE);
         JButton spectateBtn = createButton("OBSERVAR", new Color(139, 92, 246));
         refreshBtn = createButton("<<", new Color(100, 116, 139));
         refreshBtn.setPreferredSize(new Dimension(60, 50));
+        JButton rankingsBtn = createButton("VER RANKINGS", new Color(139, 92, 246));
         
         createBtn.addActionListener(e -> showCreateRoomDialog());
         joinBtn.addActionListener(e -> joinSelectedRoom(false));
         spectateBtn.addActionListener(e -> joinSelectedRoom(true));
         refreshBtn.addActionListener(e -> { if (listener != null) listener.onRefresh(); });
+        rankingsBtn.addActionListener(e -> { if (listener != null) listener.onViewRankings(); }); // ✅ CORREGIDO
         
         panel.add(refreshBtn);
         panel.add(createBtn);
         panel.add(joinBtn);
         panel.add(spectateBtn);
+        panel.add(rankingsBtn); // ✅ AGREGADO AL PANEL
         
         return panel;
     }
@@ -223,7 +225,13 @@ nameField.setBackground(Color.WHITE);
                 g2.drawString(getText(), (w - fm.stringWidth(getText())) / 2, (h + fm.getAscent() - fm.getDescent()) / 2);
             }
             
-            Color brighter(Color c, float f) { return new Color(Math.min(255,(int)(c.getRed()*f)), Math.min(255,(int)(c.getGreen()*f)), Math.min(255,(int)(c.getBlue()*f))); }
+            Color brighter(Color c, float f) { 
+                return new Color(
+                    Math.min(255,(int)(c.getRed()*f)), 
+                    Math.min(255,(int)(c.getGreen()*f)), 
+                    Math.min(255,(int)(c.getBlue()*f))
+                ); 
+            }
         };
         
         btn.setFont(new Font("Arial", Font.BOLD, 14));
