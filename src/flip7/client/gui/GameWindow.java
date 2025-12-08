@@ -501,7 +501,7 @@ public void onRegisterSuccess(User user) {
         showPanel("lobby");
         infoPanel.log("Registro exitoso!");
     });
-}
+}//holajajaja
 private void cleanupGameState() {
     SwingUtilities.invokeLater(() -> {
         playersPanel.removeAll();
