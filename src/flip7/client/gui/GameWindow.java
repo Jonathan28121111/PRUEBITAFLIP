@@ -54,115 +54,131 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
         });
     }
     
-    private void initUI() {
-        cardLayout = new CardLayout();
-        mainContainer = new JPanel(cardLayout) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g;
-                GradientPaint bg = new GradientPaint(0, 0, BLUE_LIGHT, 0, getHeight(), new Color(248, 250, 252));
-                g2.setPaint(bg);
-                g2.fillRect(0, 0, getWidth(), getHeight());
-                
-                // Nubes decorativas
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f));
-                g2.setColor(Color.WHITE);
-                g2.fillOval(-50, -80, 300, 200);
-                g2.fillOval(150, -50, 250, 180);
-                g2.fillOval(getWidth() - 250, -60, 350, 220);
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
-            }
-        };
-        
-        // 1. Pantalla de Login
-        loginPanel = new LoginPanel(new LoginPanel.LoginListener() {
-            public void onLogin(String username, String password, String host, int port) {
-                new Thread(() -> {
-                    if (!client.isConnected()) {
-                        if (!client.connect(host, port, username)) {
-                            loginPanel.onConnectionFailed();
-                            return;
-                        }
+   private void initUI() {
+    cardLayout = new CardLayout();
+    mainContainer = new JPanel(cardLayout) {
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g;
+            GradientPaint bg = new GradientPaint(0, 0, BLUE_LIGHT, 0, getHeight(), new Color(248, 250, 252));
+            g2.setPaint(bg);
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            
+            // Nubes decorativas
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f));
+            g2.setColor(Color.WHITE);
+            g2.fillOval(-50, -80, 300, 200);
+            g2.fillOval(150, -50, 250, 180);
+            g2.fillOval(getWidth() - 250, -60, 350, 220);
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        }
+    };
+    
+    // ✅ 1. Pantalla de Login (PRIMERO)
+    loginPanel = new LoginPanel(new LoginPanel.LoginListener() {
+        public void onLogin(String username, String password, String host, int port) {
+            new Thread(() -> {
+                if (!client.isConnected()) {
+                    if (!client.connect(host, port, username)) {
+                        loginPanel.onConnectionFailed();
+                        return;
                     }
-                    client.login(username, password);
-                }).start();
-            }
-            public void onRegister(String username, String password, String host, int port) {
-                new Thread(() -> {
-                    if (!client.isConnected()) {
-                        if (!client.connect(host, port, username)) {
-                            loginPanel.onConnectionFailed();
-                            return;
-                        }
-                    }
-                    client.register(username, password);
-                }).start();
-            }
-        });
-        
-        // 2. Pantalla de Lobby
-        lobbyPanel = new LobbyPanel(new LobbyPanel.LobbyListener() {
-            public void onCreateRoom(String roomName, String playerName, int maxPlayers) {
-                client.createRoom(roomName, maxPlayers);
-            }
-            public void onJoinRoom(String roomId, String playerName, boolean asSpectator) {
-                isSpectator = asSpectator;
-                if (asSpectator) {
-                    client.joinRoomAsSpectator(roomId);
-                } else {
-                    client.joinRoom(roomId);
                 }
+                client.login(username, password);
+            }).start();
+        }
+        public void onRegister(String username, String password, String host, int port) {
+            new Thread(() -> {
+                if (!client.isConnected()) {
+                    if (!client.connect(host, port, username)) {
+                        loginPanel.onConnectionFailed();
+                        return;
+                    }
+                }
+                client.register(username, password);
+            }).start();
+        }
+    });
+    
+    // ✅ 2. Pantalla de Lobby
+    lobbyPanel = new LobbyPanel(new LobbyPanel.LobbyListener() {
+        @Override
+        public void onExit() {
+            if (client != null && client.isConnected()) {
+                client.disconnect();
             }
-            public void onRefresh() {
-                client.requestRooms();
-            }
-            // ✅ AGREGADO: implementación del método faltante
-            public void onViewRankings() {
-                client.requestRankings();
-                showPanel("rankings");
-            }
-        });
+            
+            // Limpiar campos del login
+            loginPanel.clearFields();
+            
+            showPanel("login");
+        }
         
-        rankingsPanel = new RankingsPanel(new RankingsPanel.RankingsListener() {
-            public void onBack() {
-                showPanel("lobby");
-            }
-            public void onRefresh() {
-                client.requestRankings();
-            }
-        });
+        public void onCreateRoom(String roomName, String playerName, int maxPlayers) {
+            client.createRoom(roomName, maxPlayers);
+        }
         
-        // 3. Sala de espera
-        waitingRoomPanel = new WaitingRoomPanel(new WaitingRoomPanel.WaitingRoomListener() {
-            public void onReady() {
-                client.ready();
+        public void onJoinRoom(String roomId, String playerName, boolean asSpectator) {
+            isSpectator = asSpectator;
+            if (asSpectator) {
+                client.joinRoomAsSpectator(roomId);
+            } else {
+                client.joinRoom(roomId);
             }
-            public void onLeaveRoom() {
+        }
+        
+        public void onRefresh() {
+            client.requestRooms();
+        }
+        
+        public void onViewRankings() {
+            client.requestRankings();
+            showPanel("rankings");
+        }
+    });
+    
+    // ✅ 3. Panel de Rankings
+    rankingsPanel = new RankingsPanel(new RankingsPanel.RankingsListener() {
+        public void onBack() {
+            showPanel("lobby");
+        }
+        public void onRefresh() {
+            client.requestRankings();
+        }
+    });
+    
+    // ✅ 4. Sala de espera
+    waitingRoomPanel = new WaitingRoomPanel(new WaitingRoomPanel.WaitingRoomListener() {
+        public void onReady() {
+            client.ready();
+        }
+        public void onLeaveRoom() {
+            client.leaveRoom();
+            showPanel("lobby");
+        }
+        public void onJoinAsPlayer() {
+            String roomId = client.getCurrentRoomId();
+            if (roomId != null) {
                 client.leaveRoom();
-                showPanel("lobby");
+                isSpectator = false;
+                client.joinRoom(roomId);
             }
-            public void onJoinAsPlayer() {
-                // Espectador quiere unirse como jugador
-                String roomId = client.getCurrentRoomId();
-                if (roomId != null) {
-                    client.leaveRoom();
-                    isSpectator = false;
-                    client.joinRoom(roomId);
-                }
-            }
-        });
-        
-        // 4. Pantalla de juego
-        gamePanel = createGamePanel();
-        mainContainer.add(rankingsPanel, "rankings");
-        mainContainer.add(loginPanel, "login");
-        mainContainer.add(lobbyPanel, "lobby");
-        mainContainer.add(waitingRoomPanel, "waiting");
-        mainContainer.add(gamePanel, "game");
-        
-        setContentPane(mainContainer);
-        showPanel("login");
-    }
+        }
+    });
+    
+    // ✅ 5. Pantalla de juego
+    gamePanel = createGamePanel();
+    
+    // ✅ Agregar todos los paneles al contenedor (EN ORDEN)
+    mainContainer.add(loginPanel, "login");
+    mainContainer.add(lobbyPanel, "lobby");
+    mainContainer.add(rankingsPanel, "rankings");
+    mainContainer.add(waitingRoomPanel, "waiting");
+    mainContainer.add(gamePanel, "game");
+    
+    setContentPane(mainContainer);
+    showPanel("login");
+}
     
     private void showPanel(String name) {
         cardLayout.show(mainContainer, name);
@@ -697,24 +713,52 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
         }
     }
     
-    public void onChooseActionTarget(Card card, java.util.List<Player> active) {
-        if (isSpectator) return;
-        SwingUtilities.invokeLater(() -> {
-            String[] opts = new String[active.size()];
-            for (int i = 0; i < active.size(); i++) opts[i] = active.get(i).getName();
-            String sel = (String) JOptionPane.showInputDialog(this, "¿A quién asignas " + card + "?", 
-                "Carta de Acción", JOptionPane.QUESTION_MESSAGE, null, opts, opts[0]);
-            if (sel != null) {
-                for (Player p : active) {
-                    if (p.getName().equals(sel)) { 
-                        client.assignActionCard(p.getId(), card); 
-                        break; 
-                    }
-                }
-            }
-        });
-    }
+  public void onChooseActionTarget(Card card, java.util.List<Player> active) {
+    if (isSpectator) return;
     
+    SwingUtilities.invokeLater(() -> {
+        // ✅ DESHABILITAR CONTROLES mientras elige
+        hitBtn.setEnabled(false);
+        standBtn.setEnabled(false);
+        
+        String[] opts = new String[active.size()];
+        for (int i = 0; i < active.size(); i++) {
+            opts[i] = active.get(i).getName();
+        }
+        
+        // ✅ Mostrar diálogo sin opción de cancelar
+        String sel = null;
+        while (sel == null) {
+            sel = (String) JOptionPane.showInputDialog(
+                this, 
+                "¿A quién asignas " + card + "?\n(Debes elegir obligatoriamente)", 
+                "Carta de Acción - OBLIGATORIO", 
+                JOptionPane.QUESTION_MESSAGE, 
+                null, 
+                opts, 
+                opts[0]
+            );
+            
+            // ✅ Si presionó cancelar o cerró, volver a preguntar
+            if (sel == null) {
+                JOptionPane.showMessageDialog(
+                    this,
+                    "Debes elegir un objetivo para continuar",
+                    "Selección Obligatoria",
+                    JOptionPane.WARNING_MESSAGE
+                );
+            }
+        }
+        
+        // Buscar el jugador seleccionado y enviar
+        for (Player p : active) {
+            if (p.getName().equals(sel)) {
+                client.assignActionCard(p.getId(), card);
+                break;
+            }
+        }
+    });
+}
     public void onRoundEnd(java.util.List<Player> players, int round) {
         SwingUtilities.invokeLater(() -> {
             isMyTurn = false; 

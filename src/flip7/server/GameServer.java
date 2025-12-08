@@ -42,40 +42,63 @@ public class GameServer {
         }
     }
     
-    public void handleLogin(ClientHandler handler, String username, String password) {
-        User user = database.login(username, password);
-        if (user != null) {
-            handler.setPlayerName(username);
-            handler.setUserId(user.getId());
-            handler.sendMessage(GameMessage.loginSuccess(user));
-            sendRoomList(handler.getClientId());
-            System.out.println("[LOGIN] " + username + " conectado (ID: " + user.getId() + ")");
-        } else {
-            handler.sendMessage(GameMessage.loginFailed("Usuario o password incorrectos"));
-        }
+ public synchronized void handleLogin(ClientHandler handler, String username, String password) {
+    username = username.trim();
+    // ✅ VALIDACIÓN DE FORMATO DE USUARIO
+    if (!isValidUsername(username)) {
+        handler.sendMessage(GameMessage.loginFailed(
+            "❌ Usuario inválido.\nSolo letras y números.\nSin espacios.\n3 a 15 caracteres."
+        ));
+        return;
     }
-    
+
+    // ✅ BLOQUEO DE USUARIO DUPLICADO
+    if (isUserAlreadyConnected(username)) {
+        handler.sendMessage(GameMessage.loginFailed("⚠ Este usuario ya está conectado"));
+        System.out.println("[LOGIN BLOQUEADO] " + username + " duplicado");
+        return;
+    }
+
+    User user = database.login(username, password);
+
+    if (user != null) {
+        handler.setPlayerName(username);
+        handler.setUserId(user.getId());
+        handler.sendMessage(GameMessage.loginSuccess(user));
+        sendRoomList(handler.getClientId());
+        System.out.println("[LOGIN] " + username + " conectado (ID: " + user.getId() + ")");
+    } else {
+        handler.sendMessage(GameMessage.loginFailed("Usuario o password incorrectos"));
+    }
+}
     public void handleRegister(ClientHandler handler, String username, String password) {
-        if (username == null || username.trim().length() < 3) {
-            handler.sendMessage(GameMessage.registerFailed("Usuario: minimo 3 caracteres"));
-            return;
-        }
-        if (password == null || password.length() < 4) {
-            handler.sendMessage(GameMessage.registerFailed("Password: minimo 4 caracteres"));
-            return;
-        }
-        
-        User user = database.register(username.trim(), password);
-        if (user != null) {
-            handler.setPlayerName(username);
-            handler.setUserId(user.getId());
-            handler.sendMessage(GameMessage.registerSuccess(user));
-            sendRoomList(handler.getClientId());
-            System.out.println("[REGISTER] " + username + " registrado (ID: " + user.getId() + ")");
-        } else {
-            handler.sendMessage(GameMessage.registerFailed("El usuario ya existe"));
-        }
+
+    // ✅ VALIDAR FORMATO DEL USUARIO
+    if (!isValidUsername(username)) {
+        handler.sendMessage(GameMessage.registerFailed(
+            "❌ Usuario inválido.\nSolo letras y números.\nSin espacios.\n3 a 15 caracteres."
+        ));
+        return;
     }
+
+    // ✅ VALIDAR PASSWORD
+    if (password == null || password.length() < 4) {
+        handler.sendMessage(GameMessage.registerFailed("Password: mínimo 4 caracteres"));
+        return;
+    }
+
+    User user = database.register(username.trim(), password);
+
+    if (user != null) {
+        handler.setPlayerName(username);
+        handler.setUserId(user.getId());
+        handler.sendMessage(GameMessage.registerSuccess(user));
+        sendRoomList(handler.getClientId());
+        System.out.println("[REGISTER] " + username + " registrado (ID: " + user.getId() + ")");
+    } else {
+        handler.sendMessage(GameMessage.registerFailed("El usuario ya existe"));
+    }
+}
     
     public void registerClient(ClientHandler handler) {
         allClients.put(handler.getClientId(), handler);
@@ -90,7 +113,27 @@ public class GameServer {
             }
         }
     }
+    public boolean isUserAlreadyConnected(String username) {
+    for (ClientHandler h : allClients.values()) {
+        if (h.getPlayerName() != null && 
+            h.getPlayerName().equalsIgnoreCase(username)) {
+            return true;
+        }
+    }
+    return false;
+}
     
+    private boolean isValidUsername(String username) {
+    if (username == null) return false;
+
+    // ❌ Bloquea espacios
+    if (username.contains(" ")) return false;
+
+    // ✅ Solo letras y números (sin tildes ni símbolos)
+    if (!username.matches("^[a-zA-Z0-9]{3,15}$")) return false;
+
+    return true;
+}
     public List<GameRoom> getAllRooms() {
         List<GameRoom> all = new ArrayList<>();
         for (GameRoomInstance room : rooms.values()) {

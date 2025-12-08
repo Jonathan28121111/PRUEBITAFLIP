@@ -8,6 +8,12 @@ public class GameLogic {
     private Deck deck = new Deck();
     private List<GameEventListener> listeners = new ArrayList<>();
     
+    // ✅ NUEVOS: Control de cartas de acción
+    private boolean waitingForActionTarget = false;
+    private int playerWaitingForAction = -1;
+    private Card pendingActionCard = null;
+    private Set<Integer> playersWhoReceivedSecondChance = new HashSet<>(); // Por ronda
+    
     public interface GameEventListener {
         void onCardDealt(int playerId, Card card);
         void onPlayerBusted(int playerId, Card card);
@@ -48,12 +54,16 @@ public class GameLogic {
         for (Player p : gameState.getPlayers()) p.resetForNewRound();
         gameState.setPhase(GameState.Phase.DEALING);
         
-        // Repartir UNA carta inicial a cada jugador
+        // ✅ RESETEAR control de Second Chance por ronda
+        playersWhoReceivedSecondChance.clear();
+        waitingForActionTarget = false;
+        playerWaitingForAction = -1;
+        pendingActionCard = null;
+        
         dealInitialCards();
         
         gameState.setPhase(GameState.Phase.PLAYING);
         
-        // El primer turno es del jugador despues del dealer
         int startIdx = (gameState.getDealerIndex() + 1) % gameState.getPlayers().size();
         gameState.setCurrentPlayerIndex(startIdx);
         
@@ -71,9 +81,7 @@ public class GameLogic {
             
             Card card = deck.drawCard();
             if (card != null) {
-                // Para carta inicial, solo numeros o modificadores van directo
                 if (card.isActionCard()) {
-                    // Descartar y sacar otra
                     deck.discard(card);
                     card = deck.drawCard();
                 }
@@ -87,10 +95,14 @@ public class GameLogic {
     }
     
     public void playerHit(int playerId) {
+        // ✅ BLOQUEAR si se está esperando selección de objetivo
+        if (waitingForActionTarget) {
+            return;
+        }
+        
         Player player = gameState.getPlayerById(playerId);
         Player currentPlayer = gameState.getCurrentPlayer();
         
-        // Verificar que es el turno de este jugador
         if (player == null || currentPlayer == null || currentPlayer.getId() != playerId) {
             return;
         }
@@ -99,31 +111,58 @@ public class GameLogic {
             return;
         }
         
-        // Sacar UNA carta
         Card card = deck.drawCard();
         if (card == null) return;
         
         processDealtCard(player, card);
         
-        // Verificar si termino la ronda
         if (player.hasFlip7() || gameState.isRoundOver()) {
             endRound();
             return;
         }
         
-        // IMPORTANTE: Pasar al siguiente jugador despues de UNA carta
-        advanceTurn();
-        notifyGameStateUpdate();
+        // ✅ SOLO pasar turno si NO se está esperando acción
+        if (!waitingForActionTarget) {
+            advanceTurn();
+            notifyGameStateUpdate();
+        }
     }
     
     private void processDealtCard(Player player, Card card) {
         if (card.isActionCard()) {
             notifyActionCardDrawn(player.getId(), card);
+            
+            // ✅ CASO ESPECIAL: Second Chance
+            if (card.getType() == Card.CardType.SECOND_CHANCE) {
+                // Si el jugador NO tiene Second Chance, dárselo automáticamente
+                if (!playersWhoReceivedSecondChance.contains(player.getId())) {
+                    applyActionCard(player.getId(), card);
+                    return; // Terminar aquí, no pedir selección
+                }
+                // Si YA tiene uno, dar opción de regalar
+            }
+            
             List<Player> active = gameState.getActivePlayers();
             
+            // ✅ Filtrar jugadores que ya tienen Second Chance
+            if (card.getType() == Card.CardType.SECOND_CHANCE) {
+                active = filterPlayersWithoutSecondChance(active);
+            }
+            
+            if (active.isEmpty()) {
+                // Nadie puede recibir la carta, descartarla
+                deck.discard(card);
+                return;
+            }
+            
             if (active.size() == 1 && active.get(0).getId() == player.getId()) {
+                // Solo puede asignársela a sí mismo
                 applyActionCard(player.getId(), card);
             } else {
+                // ✅ BLOQUEAR el juego hasta que elija
+                waitingForActionTarget = true;
+                playerWaitingForAction = player.getId();
+                pendingActionCard = card;
                 notifyNeedActionTarget(player.getId(), card, active);
             }
         } else {
@@ -137,15 +176,45 @@ public class GameLogic {
         updateDeckInfo();
     }
     
-    public void assignActionCard(int fromId, int targetId, Card card) {
-        Player target = gameState.getPlayerById(targetId);
-        if (target != null && target.isActive()) {
-            applyActionCard(targetId, card);
-            
-            // Despues de asignar carta de accion, pasar turno
-            advanceTurn();
-            notifyGameStateUpdate();
+    // ✅ NUEVO: Filtrar jugadores sin Second Chance
+    private List<Player> filterPlayersWithoutSecondChance(List<Player> players) {
+        List<Player> filtered = new ArrayList<>();
+        for (Player p : players) {
+            if (!playersWhoReceivedSecondChance.contains(p.getId())) {
+                filtered.add(p);
+            }
         }
+        return filtered;
+    }
+    
+    public void assignActionCard(int fromId, int targetId, Card card) {
+        // ✅ VALIDAR que quien asigna es quien debe elegir
+        if (!waitingForActionTarget || playerWaitingForAction != fromId) {
+            return;
+        }
+        
+        Player target = gameState.getPlayerById(targetId);
+        if (target == null || !target.isActive()) {
+            return;
+        }
+        
+        // ✅ VALIDAR Second Chance duplicado
+        if (card.getType() == Card.CardType.SECOND_CHANCE) {
+            if (playersWhoReceivedSecondChance.contains(targetId)) {
+                // No puede recibir otro Second Chance
+                return;
+            }
+        }
+        
+        applyActionCard(targetId, card);
+        
+        // ✅ DESBLOQUEAR y pasar turno
+        waitingForActionTarget = false;
+        playerWaitingForAction = -1;
+        pendingActionCard = null;
+        
+        advanceTurn();
+        notifyGameStateUpdate();
     }
     
     private void applyActionCard(int targetId, Card card) {
@@ -154,23 +223,23 @@ public class GameLogic {
         
         switch (card.getType()) {
             case FREEZE:
-                target.addActionCard(card);  // Agregar carta al jugador para mostrarla
+                target.addActionCard(card);
                 target.setFrozen(true);
-                notifyCardDealt(targetId, card);  // Notificar que recibió la carta
+                notifyCardDealt(targetId, card);
                 notifyPlayerFrozen(targetId);
                 break;
+                
             case FLIP_THREE:
-                target.addActionCard(card);  // Agregar carta al jugador para mostrarla
+                target.addActionCard(card);
                 notifyCardDealt(targetId, card);
                 handleFlipThree(target);
                 break;
+                
             case SECOND_CHANCE:
-                if (!target.hasSecondChance()) {
-                    target.setSecondChanceCard(card);
-                    notifyCardDealt(targetId, card);
-                } else {
-                    deck.discard(card);
-                }
+                // ✅ REGISTRAR que este jugador ya recibió Second Chance
+                playersWhoReceivedSecondChance.add(targetId);
+                target.setSecondChanceCard(card);
+                notifyCardDealt(targetId, card);
                 break;
         }
     }
@@ -190,9 +259,16 @@ public class GameLogic {
                     notifyCardDealt(player.getId(), card);
                     player.setFrozen(true);
                     notifyPlayerFrozen(player.getId());
-                } else if (card.getType() == Card.CardType.SECOND_CHANCE && !player.hasSecondChance()) {
-                    player.setSecondChanceCard(card);
-                    notifyCardDealt(player.getId(), card);
+                } else if (card.getType() == Card.CardType.SECOND_CHANCE) {
+                    // ✅ AUTOMÁTICO: Solo dar si no tiene uno
+                    if (!playersWhoReceivedSecondChance.contains(player.getId())) {
+                        playersWhoReceivedSecondChance.add(player.getId());
+                        player.setSecondChanceCard(card);
+                        notifyCardDealt(player.getId(), card);
+                    } else {
+                        // Ya tiene uno, descartar
+                        deck.discard(card);
+                    }
                 } else {
                     deck.discard(card);
                 }
@@ -200,15 +276,13 @@ public class GameLogic {
                 boolean success = player.addCard(card);
                 notifyCardDealt(player.getId(), card);
                 if (!success && card.isNumberCard()) {
-                    // Carta duplicada - bust
-                    player.getNumberCards().add(card);  // Agregar para mostrar
+                    player.getNumberCards().add(card);
                     player.setBusted(true);
                     notifyPlayerBusted(player.getId(), card);
                     break;
                 }
             }
             
-            // Pequeña pausa para que se vea cada carta (el cliente debería manejar esto)
             notifyGameStateUpdate();
         }
         
@@ -217,6 +291,11 @@ public class GameLogic {
     }
     
     public void playerStand(int playerId) {
+        // ✅ BLOQUEAR si se está esperando selección de objetivo
+        if (waitingForActionTarget) {
+            return;
+        }
+        
         Player player = gameState.getPlayerById(playerId);
         Player currentPlayer = gameState.getCurrentPlayer();
         
@@ -228,7 +307,6 @@ public class GameLogic {
             return;
         }
         
-        // Necesita al menos una carta para plantarse
         if (player.getNumberCardCount() == 0 && player.getModifierCards().isEmpty()) {
             return;
         }
@@ -249,13 +327,12 @@ public class GameLogic {
         if (player.hasSecondChance()) {
             deck.discard(player.useSecondChance());
             deck.discard(bustCard);
-            notifyCardDealt(player.getId(), bustCard); // Mostrar la carta que salio
+            notifyCardDealt(player.getId(), bustCard);
             return;
         }
         
-        // Agregar la carta duplicada para mostrarla (aunque cause bust)
         player.getNumberCards().add(bustCard);
-        notifyCardDealt(player.getId(), bustCard);  // Mostrar la carta que causó el bust
+        notifyCardDealt(player.getId(), bustCard);
         
         player.setBusted(true);
         notifyPlayerBusted(player.getId(), bustCard);
@@ -284,6 +361,11 @@ public class GameLogic {
     
     private void endRound() {
         gameState.setPhase(GameState.Phase.ROUND_END);
+        
+        // ✅ LIMPIAR estado de espera
+        waitingForActionTarget = false;
+        playerWaitingForAction = -1;
+        pendingActionCard = null;
         
         for (Player p : gameState.getPlayers()) {
             p.addToTotalScore(p.calculateRoundScore());

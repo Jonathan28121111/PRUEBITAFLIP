@@ -25,6 +25,7 @@ public class LobbyPanel extends JPanel {
         void onCreateRoom(String roomName, String playerName, int maxPlayers);
         void onJoinRoom(String roomId, String playerName, boolean asSpectator);
         void onRefresh();
+        void onExit();
         void onViewRankings(); // ✅ AGREGADO AQUÍ
     }
     
@@ -165,31 +166,37 @@ public class LobbyPanel extends JPanel {
         return panel;
     }
     
-    private JPanel createActionsPanel() {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
-        panel.setOpaque(false);
-        
-        createBtn = createButton("CREAR SALA", GREEN);
-        joinBtn = createButton("UNIRSE", BLUE_DARK);
-        JButton spectateBtn = createButton("OBSERVAR", new Color(139, 92, 246));
-        refreshBtn = createButton("<<", new Color(100, 116, 139));
-        refreshBtn.setPreferredSize(new Dimension(60, 50));
-        JButton rankingsBtn = createButton("VER RANKINGS", new Color(139, 92, 246));
-        
-        createBtn.addActionListener(e -> showCreateRoomDialog());
-        joinBtn.addActionListener(e -> joinSelectedRoom(false));
-        spectateBtn.addActionListener(e -> joinSelectedRoom(true));
-        refreshBtn.addActionListener(e -> { if (listener != null) listener.onRefresh(); });
-        rankingsBtn.addActionListener(e -> { if (listener != null) listener.onViewRankings(); }); // ✅ CORREGIDO
-        
-        panel.add(refreshBtn);
-        panel.add(createBtn);
-        panel.add(joinBtn);
-        panel.add(spectateBtn);
-        panel.add(rankingsBtn); // ✅ AGREGADO AL PANEL
-        
-        return panel;
-    }
+ private JPanel createActionsPanel() {
+    JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
+    panel.setOpaque(false);
+
+    refreshBtn = createButton("<<", new Color(100, 116, 139));
+    createBtn = createButton("CREAR SALA", GREEN);
+    joinBtn = createButton("UNIRSE", BLUE_DARK);
+    JButton spectateBtn = createButton("OBSERVAR", new Color(139, 92, 246));
+    JButton rankingsBtn = createButton("VER RANKINGS", new Color(139, 92, 246));
+
+    // ✅ AQUÍ YA NO HAY NULL
+    refreshBtn.addActionListener(e -> {
+        if (listener != null) listener.onExit();
+    });
+
+    createBtn.addActionListener(e -> showCreateRoomDialog());
+    joinBtn.addActionListener(e -> joinSelectedRoom(false));
+    spectateBtn.addActionListener(e -> joinSelectedRoom(true));
+
+    rankingsBtn.addActionListener(e -> {
+        if (listener != null) listener.onViewRankings();
+    });
+
+    panel.add(refreshBtn);
+    panel.add(createBtn);
+    panel.add(joinBtn);
+    panel.add(spectateBtn);
+    panel.add(rankingsBtn);
+
+    return panel;
+}
     
     private JButton createButton(String text, Color color) {
         JButton btn = new JButton(text) {

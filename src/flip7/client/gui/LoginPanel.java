@@ -215,6 +215,33 @@ public class LoginPanel extends JPanel {
         }
     }
     
+    // ✅ MÉTODO PARA LIMPIAR TODOS LOS CAMPOS
+    public void clearFields() {
+        SwingUtilities.invokeLater(() -> {
+            userField.setText("");
+            passField.setText("");
+            hostField.setText("localhost");
+            portField.setText("5555");
+            
+            loginBtn.setEnabled(true);
+            registerBtn.setEnabled(true);
+            loginBtn.setText("ENTRAR");
+            registerBtn.setText("REGISTRAR");
+            
+            userField.requestFocusInWindow();
+        });
+    }
+    
+    // ✅ MÉTODO PARA RESETEAR SOLO BOTONES
+    public void resetButtons() {
+        SwingUtilities.invokeLater(() -> {
+            loginBtn.setText("ENTRAR");
+            registerBtn.setText("REGISTRAR");
+            loginBtn.setEnabled(true);
+            registerBtn.setEnabled(true);
+        });
+    }
+    
     public void onLoginFailed(String reason) {
         SwingUtilities.invokeLater(() -> {
             loginBtn.setText("ENTRAR");
@@ -222,15 +249,6 @@ public class LoginPanel extends JPanel {
             loginBtn.setEnabled(true);
             registerBtn.setEnabled(true);
             JOptionPane.showMessageDialog(this, reason, "Error de Login", JOptionPane.ERROR_MESSAGE);
-        });
-    }
-    
-    public void resetButtons() {
-        SwingUtilities.invokeLater(() -> {
-            loginBtn.setText("ENTRAR");
-            registerBtn.setText("REGISTRAR");
-            loginBtn.setEnabled(true);
-            registerBtn.setEnabled(true);
         });
     }
     
