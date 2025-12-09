@@ -39,21 +39,95 @@ public class GameWindow extends JFrame implements GameClient.GameClientListener 
     private static final Color RED = new Color(248, 113, 113);
     
     public GameWindow() {
-        super("Flip 7 - Juego de Cartas");
-        client.addListener(this);
-        initUI();
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(1250, 850);
-        setMinimumSize(new Dimension(1000, 700));
-        setLocationRelativeTo(null);
-        
-        addWindowListener(new WindowAdapter() {
-            public void windowClosing(WindowEvent e) {
-                if (client.isConnected()) client.disconnect();
-            }
-        });
-    }
+    super("Flip 7 - Juego de Cartas");
+    client.addListener(this);
+    initUI();
+    setDefaultCloseOperation(DO_NOTHING_ON_CLOSE); // ✅ CAMBIO: NO cerrar automáticamente
+    setSize(1250, 850);
+    setMinimumSize(new Dimension(1000, 700));
+    setLocationRelativeTo(null);
     
+    // ✅ NUEVO LISTENER con confirmación
+    addWindowListener(new WindowAdapter() {
+        public void windowClosing(WindowEvent e) {
+            handleWindowClose();
+        }
+    });
+}
+    
+    private void handleWindowClose() {
+    // Si está en juego activo
+    if (gameStarted && client.isInRoom()) {
+        String message;
+        
+        if (isHost) {
+            message = "Eres el HOST de esta partida.\n\n" +
+                     "Si cierras el juego, la partida TERMINARÁ para todos.\n\n" +
+                     "¿Estás seguro de que quieres salir?";
+        } else {
+            message = "Estás en medio de una partida.\n\n" +
+                     "Si sales ahora, PERDERÁS todos los puntos y se contará como derrota.\n\n" +
+                     "¿Estás seguro de que quieres salir?";
+        }
+        
+        int confirm = JOptionPane.showConfirmDialog(
+            this,
+            message,
+            "⚠️ Salir Durante Partida",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        );
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            // Usuario confirmó salir
+            if (client.isConnected()) {
+                client.leaveRoom();
+                client.disconnect();
+            }
+            dispose();
+            System.exit(0);
+        }
+        // Si dice NO, no hace nada y permanece en el juego
+        
+    } else if (client.isInRoom()) {
+        // En sala de espera (no en juego)
+        String message;
+        
+        if (isHost) {
+            message = "Eres el HOST de esta sala.\n\n" +
+                     "Si cierras el juego, la sala se CERRARÁ.\n\n" +
+                     "¿Estás seguro?";
+        } else {
+            message = "Estás en una sala de espera.\n\n" +
+                     "¿Quieres salir?";
+        }
+        
+        int confirm = JOptionPane.showConfirmDialog(
+            this,
+            message,
+            "⚠️ Salir de Sala",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        );
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            if (client.isConnected()) {
+                client.leaveRoom();
+                client.disconnect();
+            }
+            dispose();
+            System.exit(0);
+        }
+        
+    } else {
+        // No está en sala ni en juego, salir directamente
+        if (client.isConnected()) {
+            client.disconnect();
+        }
+        dispose();
+        System.exit(0);
+    }
+}
    private void initUI() {
     cardLayout = new CardLayout();
     mainContainer = new JPanel(cardLayout) {
@@ -717,10 +791,97 @@ public void onRoomCreated(GameRoom room, int playerId) {
         });
     }
     
-    public void onRoundStart(int round) { 
-        infoPanel.log("\n─── RONDA " + round + " ───"); 
-    }
-    
+public void onRoundStart(int round) { 
+    SwingUtilities.invokeLater(() -> {
+        infoPanel.log("\n─── RONDA " + round + " ───");
+        infoPanel.log("🎮 ¡Comienza la ronda!\n");
+    });
+}
+public void onRoundEnd(java.util.List<Player> players, int round) {
+    SwingUtilities.invokeLater(() -> {
+        isMyTurn = false; 
+        turnIndicator.setText(""); 
+        updateControls();
+        
+        infoPanel.log("\n─── FIN RONDA " + round + " ───");
+        for (Player p : players) {
+            infoPanel.log("  " + p.getName() + ": +" + p.getRoundScore() + " → " + p.getTotalScore());
+        }
+        infoPanel.showScoreboard(players);
+        
+        // ✅ VERIFICAR SI ALGUIEN YA GANÓ
+        boolean gameOver = false;
+        for (Player p : players) {
+            if (p.getTotalScore() >= 200) {
+                gameOver = true;
+                break;
+            }
+        }
+        
+        // ✅ NOTIFICACIÓN SIMPLE
+        if (!gameOver) {
+            final int[] countdown = {3};
+            
+            // Crear mensaje simple
+            String message = "Ronda " + round + " finalizada\n\nNueva ronda en: " + countdown[0] + " segundos";
+            
+            JOptionPane pane = new JOptionPane(
+                message,
+                JOptionPane.INFORMATION_MESSAGE,
+                JOptionPane.DEFAULT_OPTION,
+                null,
+                new Object[]{}, // Sin botones
+                null
+            );
+            
+            JDialog dialog = pane.createDialog(this, "Fin de Ronda");
+            dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+            dialog.setModal(false);
+            
+            // Obtener el label
+            JLabel messageLabel = null;
+            for (Component comp : pane.getComponents()) {
+                if (comp instanceof JLabel) {
+                    messageLabel = (JLabel) comp;
+                    break;
+                }
+            }
+            
+            final JLabel label = messageLabel;
+            
+            // Timer simple de 3 segundos
+            javax.swing.Timer timer = new javax.swing.Timer(1000, new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    countdown[0]--;
+                    
+                    if (countdown[0] > 0) {
+                        if (label != null) {
+                            label.setText("Ronda " + round + " finalizada\n\nNueva ronda en: " + countdown[0] + " segundos");
+                        }
+                    } else {
+                        if (label != null) {
+                            label.setText("¡Comenzando!");
+                        }
+                        
+                        javax.swing.Timer closeTimer = new javax.swing.Timer(300, ev -> {
+                            dialog.dispose();
+                        });
+                        closeTimer.setRepeats(false);
+                        closeTimer.start();
+                        
+                        ((javax.swing.Timer)e.getSource()).stop();
+                    }
+                }
+            });
+            timer.setRepeats(true);
+            
+            dialog.setVisible(true);
+            timer.start();
+            Toolkit.getDefaultToolkit().beep();
+        }
+    });
+}
     public void onYourTurn(int id) {
         SwingUtilities.invokeLater(() -> {
             isMyTurn = (id == myPlayerId);
@@ -786,6 +947,8 @@ public void onRoomCreated(GameRoom room, int playerId) {
         }
     }
     
+
+
 public void onChooseActionTarget(Card card, java.util.List<Player> active) {
     if (isSpectator) return;
     
@@ -799,49 +962,48 @@ public void onChooseActionTarget(Card card, java.util.List<Player> active) {
             opts[i] = active.get(i).getName();
         }
         
-        // ✅ Mostrar diálogo sin opción de cancelar
-        String sel = null;
-        while (sel == null) {
-            sel = (String) JOptionPane.showInputDialog(
-                this, 
-                "¿A quién asignas " + card + "?\n(Debes elegir obligatoriamente)", 
-                "Carta de Acción - OBLIGATORIO", 
-                JOptionPane.QUESTION_MESSAGE, 
-                null, 
-                opts, 
-                opts[0]
-            );
-            
-            // ✅ Si presionó cancelar o cerró, volver a preguntar
-            if (sel == null) {
-                JOptionPane.showMessageDialog(
-                    this,
-                    "Debes elegir un objetivo para continuar",
-                    "Selección Obligatoria",
-                    JOptionPane.WARNING_MESSAGE
-                );
+        // ✅ DELAY DE 2 SEGUNDOS para que se vea la carta
+        javax.swing.Timer timer = new javax.swing.Timer(2000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // ✅ Mostrar diálogo sin opción de cancelar
+                String sel = null;
+                while (sel == null) {
+                    sel = (String) JOptionPane.showInputDialog(
+                        GameWindow.this, 
+                        "¿A quién asignas " + card + "?\n(Debes elegir obligatoriamente)", 
+                        "Carta de Acción - OBLIGATORIO", 
+                        JOptionPane.QUESTION_MESSAGE, 
+                        null, 
+                        opts, 
+                        opts[0]
+                    );
+                    
+                    // ✅ Si presionó cancelar o cerró, volver a preguntar
+                    if (sel == null) {
+                        JOptionPane.showMessageDialog(
+                            GameWindow.this,
+                            "Debes elegir un objetivo para continuar",
+                            "Selección Obligatoria",
+                            JOptionPane.WARNING_MESSAGE
+                        );
+                    }
+                }
+                
+                // Buscar el jugador seleccionado y enviar
+                for (Player p : active) {
+                    if (p.getName().equals(sel)) {
+                        client.assignActionCard(p.getId(), card);
+                        break;
+                    }
+                }
             }
-        }
-        
-        // Buscar el jugador seleccionado y enviar
-        for (Player p : active) {
-            if (p.getName().equals(sel)) {
-                client.assignActionCard(p.getId(), card);
-                break;
-            }
-        }
+        });
+        timer.setRepeats(false);
+        timer.start();
     });
 }
-    public void onRoundEnd(java.util.List<Player> players, int round) {
-        SwingUtilities.invokeLater(() -> {
-            isMyTurn = false; 
-            turnIndicator.setText(""); 
-            updateControls();
-            infoPanel.log("\n─── FIN RONDA " + round + " ───");
-            for (Player p : players) infoPanel.log("  " + p.getName() + ": +" + p.getRoundScore() + " → " + p.getTotalScore());
-            infoPanel.showScoreboard(players);
-        });
-    }
+  
     
    public void onGameEnd(java.util.List<Player> players, int winnerId) {
     SwingUtilities.invokeLater(() -> {

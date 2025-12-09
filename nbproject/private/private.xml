@@ -3,14 +3,21 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
-            <file>file:/C:/Users/yaela/OneDrive/Documentos/NetBeansProjects/flipprueba/src/flip7/client/gui/LoginPanel.java</file>
-            <file>file:/C:/Users/yaela/OneDrive/Documentos/NetBeansProjects/flipprueba/src/flip7/client/gui/GameWindow.java</file>
-            <file>file:/C:/Users/yaela/OneDrive/Documentos/NetBeansProjects/flipprueba/src/flip7/client/gui/LobbyPanel.java</file>
-            <file>file:/C:/Users/yaela/OneDrive/Documentos/NetBeansProjects/flipprueba/src/flip7/server/DatabaseManager.java</file>
-            <file>file:/C:/Users/yaela/OneDrive/Documentos/NetBeansProjects/flipprueba/src/flip7/client/GameClient.java</file>
-            <file>file:/C:/Users/yaela/OneDrive/Documentos/NetBeansProjects/flipprueba/src/flip7/common/GameMessage.java</file>
-            <file>file:/C:/Users/yaela/OneDrive/Documentos/NetBeansProjects/flipprueba/src/flip7/server/ClientHandler.java</file>
-            <file>file:/C:/Users/yaela/OneDrive/Documentos/NetBeansProjects/flipprueba/src/flip7/server/GameServer.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/game/GameLogic.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/client/gui/GameWindow.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/GameRoom.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/server/GameServer.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/GameMessage.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/Card.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/Deck.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/EstadisticasUsuario.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/GameState.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/Player.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/server/DatabaseManager.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/client/GameClient.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/client/gui/LoginPanel.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/client/gui/WaitingRoomPanel.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/client/gui/LobbyPanel.java</file>
         </group>
     </open-files>
 </project-private>
