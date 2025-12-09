@@ -7,12 +7,10 @@ public class GameLogic {
     private GameState gameState = new GameState();
     private Deck deck = new Deck();
     private List<GameEventListener> listeners = new ArrayList<>();
-    
-    // ✅ NUEVOS: Control de cartas de acción
     private boolean waitingForActionTarget = false;
     private int playerWaitingForAction = -1;
     private Card pendingActionCard = null;
-    private Set<Integer> playersWhoReceivedSecondChance = new HashSet<>(); // Por ronda
+    private Set<Integer> playersWhoReceivedSecondChance = new HashSet<>(); 
     
     public interface GameEventListener {
         void onCardDealt(int playerId, Card card);
@@ -64,13 +62,32 @@ public class GameLogic {
         
         gameState.setPhase(GameState.Phase.PLAYING);
         
-        int startIdx = (gameState.getDealerIndex() + 1) % gameState.getPlayers().size();
+        int startIdx = gameState.getDealerIndex();
+        
+        // ✅ Verificar que el jugador esté conectado
+        Player startPlayer = gameState.getPlayers().get(startIdx);
+        if (!startPlayer.isConnected()) {
+            // Si el dealer se desconectó, buscar el siguiente activo
+            startIdx = getNextActivePlayerIndex(startIdx);
+            if (startIdx == -1) {
+                startIdx = 0; // Fallback
+            }
+        }
+        
         gameState.setCurrentPlayerIndex(startIdx);
+        
+        Player starter = gameState.getPlayers().get(startIdx);
+        System.out.println("[TURNO] Comienza: " + starter.getName() + 
+                         " (índice " + startIdx + ", dealer: " + gameState.getDealerIndex() + ")");
         
         notifyTurnChange();
         notifyGameStateUpdate();
     }
     
+    /**
+     * ✅ Ahora las cartas de acción (FREEZE, FLIP_THREE, SECOND_CHANCE)
+     * también se procesan en el reparto inicial, igual que en un hit normal.
+     */
     private void dealInitialCards() {
         List<Player> players = gameState.getPlayers();
         int start = (gameState.getDealerIndex() + 1) % players.size();
@@ -81,14 +98,9 @@ public class GameLogic {
             
             Card card = deck.drawCard();
             if (card != null) {
-                if (card.isActionCard()) {
-                    deck.discard(card);
-                    card = deck.drawCard();
-                }
-                if (card != null) {
-                    player.addCard(card);
-                    notifyCardDealt(player.getId(), card);
-                }
+                // ❌ Antes descartabas action cards aquí.
+                // ✅ Ahora usamos la misma lógica general:
+                processDealtCard(player, card);
             }
         }
         updateDeckInfo();
@@ -130,19 +142,32 @@ public class GameLogic {
     
     private void processDealtCard(Player player, Card card) {
         if (card.isActionCard()) {
+            // ✅ Mostrar la carta pero NO agregarla aún a la mano de nadie
+            notifyCardDealt(player.getId(), card);
             notifyActionCardDrawn(player.getId(), card);
             
             // ✅ CASO ESPECIAL: Second Chance
             if (card.getType() == Card.CardType.SECOND_CHANCE) {
-                // Si el jugador NO tiene Second Chance, dárselo automáticamente
+                // Si el jugador NO tiene Second Chance, dárselo automáticamente (primera es para ti)
                 if (!playersWhoReceivedSecondChance.contains(player.getId())) {
-                    applyActionCard(player.getId(), card);
+                    applyActionCard(player.getId(), card);  // para ti
+                    updateDeckInfo();
                     return; // Terminar aquí, no pedir selección
                 }
-                // Si YA tiene uno, dar opción de regalar
+                // Si YA tiene uno, debe poder regalarla (no se descarta)
             }
             
+            // Obtener jugadores activos
             List<Player> active = gameState.getActivePlayers();
+            if (active == null || active.isEmpty()) {
+                // Fallback: usar todos los conectados activos
+                active = new ArrayList<>();
+                for (Player p : gameState.getPlayers()) {
+                    if (p.isConnected() && p.isActive()) {
+                        active.add(p);
+                    }
+                }
+            }
             
             // ✅ Filtrar jugadores que ya tienen Second Chance
             if (card.getType() == Card.CardType.SECOND_CHANCE) {
@@ -152,6 +177,7 @@ public class GameLogic {
             if (active.isEmpty()) {
                 // Nadie puede recibir la carta, descartarla
                 deck.discard(card);
+                updateDeckInfo();
                 return;
             }
             
@@ -159,7 +185,7 @@ public class GameLogic {
                 // Solo puede asignársela a sí mismo
                 applyActionCard(player.getId(), card);
             } else {
-                // ✅ BLOQUEAR el juego hasta que elija
+                // ✅ BLOQUEAR el juego hasta que elija objetivo
                 waitingForActionTarget = true;
                 playerWaitingForAction = player.getId();
                 pendingActionCard = card;
@@ -176,7 +202,7 @@ public class GameLogic {
         updateDeckInfo();
     }
     
-    // ✅ NUEVO: Filtrar jugadores sin Second Chance
+    // ✅ Filtrar jugadores sin Second Chance (para evitar duplicados)
     private List<Player> filterPlayersWithoutSecondChance(List<Player> players) {
         List<Player> filtered = new ArrayList<>();
         for (Player p : players) {
@@ -206,6 +232,12 @@ public class GameLogic {
             }
         }
         
+        // ✅ Asegurarnos de que el jugador que la sacó no se quede con la carta
+        Player fromPlayer = gameState.getPlayerById(fromId);
+        if (fromPlayer != null) {
+            fromPlayer.getActionCards().remove(card);
+        }
+        
         applyActionCard(targetId, card);
         
         // ✅ DESBLOQUEAR y pasar turno
@@ -223,6 +255,7 @@ public class GameLogic {
         
         switch (card.getType()) {
             case FREEZE:
+                // Esta carta sí forma parte de las actionCards del jugador
                 target.addActionCard(card);
                 target.setFrozen(true);
                 notifyCardDealt(targetId, card);
@@ -230,13 +263,14 @@ public class GameLogic {
                 break;
                 
             case FLIP_THREE:
+                // También forma parte de sus actionCards si quieres mostrarla
                 target.addActionCard(card);
                 notifyCardDealt(targetId, card);
                 handleFlipThree(target);
                 break;
                 
             case SECOND_CHANCE:
-                // ✅ REGISTRAR que este jugador ya recibió Second Chance
+                // ✅ Registrar que este jugador ya recibió Second Chance
                 playersWhoReceivedSecondChance.add(targetId);
                 target.setSecondChanceCard(card);
                 notifyCardDealt(targetId, card);
@@ -367,10 +401,29 @@ public class GameLogic {
         playerWaitingForAction = -1;
         pendingActionCard = null;
         
+        // ✅ CALCULAR PUNTOS DE LA RONDA **ANTES** de determinar el ganador
         for (Player p : gameState.getPlayers()) {
-            p.addToTotalScore(p.calculateRoundScore());
+            int roundScore = p.calculateRoundScore();
+            p.addToTotalScore(roundScore);
         }
         
+        // ✅ DETERMINAR EL SIGUIENTE DEALER (quien hizo más puntos)
+        int nextDealerIndex = findPlayerWithMostRoundPoints();
+        if (nextDealerIndex != -1) {
+            gameState.setDealerIndex(nextDealerIndex);
+            
+            // LOG PARA DEBUGGING
+            Player nextDealer = gameState.getPlayers().get(nextDealerIndex);
+            System.out.println("[DEALER] Siguiente dealer: " + nextDealer.getName() + 
+                             " (hizo " + nextDealer.getRoundScore() + " pts en ronda " + 
+                             gameState.getRoundNumber() + ")");
+        } else {
+            // Fallback: rotar normal si no se puede determinar
+            System.out.println("[DEALER] No se pudo determinar ganador, rotando normalmente");
+            gameState.setDealerIndex((gameState.getDealerIndex() + 1) % gameState.getPlayers().size());
+        }
+        
+        // Descartar todas las cartas
         for (Player p : gameState.getPlayers()) {
             deck.discardAll(p.getAllCards());
         }
@@ -382,35 +435,36 @@ public class GameLogic {
             return;
         }
         
-        // ✅ NUEVO: El siguiente dealer es quien hizo MÁS puntos en esta ronda
-        int nextDealerIndex = findPlayerWithMostRoundPoints();
-        if (nextDealerIndex != -1) {
-            gameState.setDealerIndex(nextDealerIndex);
-        } else {
-            // Fallback: rotar normal si no se puede determinar
-            gameState.setDealerIndex((gameState.getDealerIndex() + 1) % gameState.getPlayers().size());
-        }
-        
         gameState.setRoundNumber(gameState.getRoundNumber() + 1);
     }
     
     /**
-     * ✅ NUEVO: Encuentra al jugador que hizo más puntos en la ronda actual
+     * Encuentra al jugador que hizo más puntos en la ronda actual
      */
     private int findPlayerWithMostRoundPoints() {
         List<Player> players = gameState.getPlayers();
         int maxPoints = -1;
         int winnerIndex = -1;
         
+        System.out.println("[DEALER] Evaluando puntos de ronda:");
+        
         for (int i = 0; i < players.size(); i++) {
             Player p = players.get(i);
             if (p.isConnected()) {
                 int roundScore = p.getRoundScore();
+                System.out.println("  - " + p.getName() + " (índice " + i + "): " + roundScore + " pts");
+                
+                // En caso de empate, gana el primero encontrado
                 if (roundScore > maxPoints) {
                     maxPoints = roundScore;
                     winnerIndex = i;
                 }
             }
+        }
+        
+        if (winnerIndex >= 0) {
+            System.out.println("[DEALER] Ganador de ronda: " + players.get(winnerIndex).getName() + 
+                             " con " + maxPoints + " pts (índice " + winnerIndex + ")");
         }
         
         return winnerIndex;
