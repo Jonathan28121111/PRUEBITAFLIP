@@ -5,19 +5,21 @@
         <group>
             <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/game/GameLogic.java</file>
             <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/client/gui/GameWindow.java</file>
-            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/GameRoom.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/voltear7/comun/SalaJuego.java</file>
             <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/server/GameServer.java</file>
-            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/GameMessage.java</file>
-            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/Card.java</file>
-            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/Deck.java</file>
-            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/EstadisticasUsuario.java</file>
-            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/GameState.java</file>
-            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/common/Player.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/voltear7/comun/MensajeJuego.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/voltear7/comun/Carta.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/voltear7/comun/Mazo.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/voltear7/comun/EstadisticasUsuario.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/voltear7/comun/EstadoJuego.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/voltear7/comun/Jugador.java</file>
             <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/server/DatabaseManager.java</file>
-            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/client/GameClient.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/voltear7/cliente/ClienteJuego.java</file>
             <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/client/gui/LoginPanel.java</file>
             <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/client/gui/WaitingRoomPanel.java</file>
             <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/client/gui/LobbyPanel.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/voltear7/comun/Usuario.java</file>
+            <file>file:/C:/Users/jonat/Documents/NetBeansProjects/pruebaaaa/PRUEBITAFLIP/PRUEBITAFLIP/src/flip7/server/ClientHandler.java</file>
         </group>
     </open-files>
 </project-private>
